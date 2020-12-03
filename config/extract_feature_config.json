@@ -1,0 +1,19 @@
+{
+  "model_path":"./config/mars_small_eswin.pb",
+  "model_path_pmd" : "",
+  "max_num": 100,
+  "batch": 1,
+  "height": 128,
+  "width": 64,
+  "class_number": 80,
+  "iou_threshold" : 0.40,
+  "score_threshold" : 0.3,
+  "quantization_enable" : false,
+  "post_on_host": false,
+  "tuning" : true,
+  "fusion_on" : true,
+  "pitch_on" : true,
+  "prt_mode" : true,
+  "tuning_i8" : "./config/",
+  "tuning_fp32" : "./config/tune_boe.json"
+}

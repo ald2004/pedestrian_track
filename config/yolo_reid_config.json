@@ -1,0 +1,4 @@
+{
+  "yolo_config_path":"./config/object_detection_config.json",
+  "reid_config_path" : "./config/extract_feature_config.json"
+}

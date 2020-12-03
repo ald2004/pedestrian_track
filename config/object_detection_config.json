@@ -1,0 +1,19 @@
+{
+  "model_path":"./config/yolo_v3_416.pb",
+  "model_path_pmd" : "./config/yolo_v3_416.pmd",
+  "max_num": 100,
+  "batch": 1,
+  "height": 416,
+  "width": 416,
+  "class_number": 80,
+  "iou_threshold" : 0.40,
+  "score_threshold" : 0.30,
+  "quantization_enable" : true,
+  "post_on_host": true,
+  "tuning" : true,
+  "fusion_on" : true,
+  "pitch_on" : true,
+  "prt_mode" : false,
+  "tuning_i8" : "./config/yolo_v3_416_i8.json",
+  "tuning_fp32" : ""
+}

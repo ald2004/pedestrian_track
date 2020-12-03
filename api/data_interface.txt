@@ -1,0 +1,50 @@
+report detail {"areaCount":{"A":3938,"B":0,"C":11,"D":0},"ageCount":{"46-60":"10%","61":"15%","31-45":"5%","21-30":"50%","0-20":"20%"},"genderCount":{"men":{"num":2,"percent":"10%"},"women":{"num":4,"percent":"20%"}},"totalCount":31,"faceCount":0,"personCount":{"60-120":"0","0-15":"18","30-45":"0","15-30":"0",">120":"0","45-60":"0"}}
+
+
+realheat [{"x":235,"y":315,"num":4}]
+
+
+report by hour{"0":0,"1":0,"2":0,"3":0,"4":0,"5":0,"6":0,"7":0,"8":7,"9":14}
+
+realtrack [{"id":"1_136","x":235,"y":315,"time":1606874052384}]
+
+Request URL: http://192.168.1.100/api/v1/config/
+
+conifg {code: 200, data: {X: 1100, Y: 1100}, success: true}
+{"code":200,"data":{"X":1100,"Y":1100},"success":true}
+
+
+Request URL: http://192.168.1.100/video/video_feed
+
+
+/usr/bin/ffmpeg -re ffmpeg -f v4l2 -i /dev/video0 -c:v libx264 -an -f flv rtmp://192.168.8.121/live/bbb
+
+application webcam {
+               live on;
+               record off;
+               exec_static /usr/bin/ffmpeg -f v4l2 -i /dev/video0 -c:v libx264 -an -f flv rtmp://192.168.8.121/live/bbb;
+          }
+
+
+* * * * * /bin/bash /home/yuanpu/startsshp.sh > /home/yuanpu/autossh.log 2>&1
+
+
+#!/bin/bash
+source /home/yuanpu/.bash_profile
+export PATH=/home/yuanpu/.local/bin:$PATH:/usr/bin:/usr/local/bin
+if [[ ! `pidof -s autossh` ]]; then
+    /home/yuanpu/.local/bin/autossh -g -M 20000 -N -f root@www.yuanxinchen.com -R 111:0.0.0.0:22 -C
+    /home/yuanpu/.local/bin/autossh -g -M 20008 -N -f root@www.yuanxinchen.com -R 3234:0.0.0.0:3232 -C
+     /home/yuanpu/.local/bin/autossh -M 20006 -N -f root@www.yuanxinchen.com -R 444:0.0.0.0:22 -C
+    /home/yuanpu/.local/bin/autossh -M 20007 -N -f root@www.yuanxinchen.com -R 3233:0.0.0.0:3232 -C
+fi
+
+
+/usr/bin/autossh -g -M 20000 -N -f jlv@171.221.254.72 -R 111:0.0.0.0:52635 -C  panyi@123
+
+
+ssh -p 52635 jlv@171.221.254.72 -R 444:0.0.0.0:52635
+
+GatewayPorts yes
+
+ /usr/bin/autossh -p 52635 -g -M 20000 -N -f jlv@171.221.254.72 -R 52636:0.0.0.0:22 -C
