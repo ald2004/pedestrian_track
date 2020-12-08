@@ -25,7 +25,7 @@ int write_queue(uint8_t* p,int size) {
     // open named pipe
     int fifo;
 
-    if ((fifo = open("/dev/shm/img_q", O_WRONLY)) < 0) {
+    if ((fifo = open("/dev/shm/img_q", O_WRONLY|O_CREAT)) < 0) {
         printf("Fifo error: %s\n", strerror(errno));
         return 1;
     }
