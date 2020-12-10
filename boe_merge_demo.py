@@ -4,6 +4,7 @@ import json
 import time
 import uuid
 import numpy as np
+import sqlite3
 from multiprocessing import Process
 from api.CameraApi import (
     get_ins,
@@ -48,6 +49,8 @@ class demo_classer(object):
         self.config['h'] = 480
         self.config['c'] = 3
         self.config['RTMP_PATH'] = 'rtmp://192.168.8.121/live/bbb'
+        self.conn = sqlite3.connect('aquarium.db')
+        self.c = self.conn.cursor()
 
     def pint_main(self, q, outfifo):
         # imgs_list = ['./images/boe_test.jpg', ]
@@ -203,8 +206,8 @@ if __name__ == "__main__":
     #                 )
     #         .run_async(pipe_stdin=True))
 
-    q = Queue(maxsize=200)
-    outq=Queue(maxsize=100)
+    q = Queue(maxsize=20)
+    outq=Queue(maxsize=20)
     gcf = Process(target=get_camera_frame, args=(None,))
     pm = Process(target=pintmain, args=(q,outq))
     gcf.start()
@@ -224,5 +227,4 @@ if __name__ == "__main__":
 '''
  ffmpeg -hwaccel_device /dev/dri/card0 -r 9 -i /dev/shm/rtmp_q -an -s 320*240  -f flv -r 9 rtmp://192.168.8.121/live/bbb -c:v h264_vaapi
   ffmpeg -hwaccel_device /dev/dri/card0 -r 9 -i /dev/shm/rtmp_q -an -s 320*240  -f flv -r 9 rtmp://192.168.8.121/live/bbb -c:v hevc_vaapi
-
 '''
