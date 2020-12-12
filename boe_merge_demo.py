@@ -20,12 +20,14 @@ from api.yolo_reid_pint_api import Config
 from api.yolo_reid_pint_api import cosine_distance
 from api.plot_utils import plot_multi_images
 from api.timer import Timer
+import sqlite3
 
 IMAGE_PIPE = '/dev/shm/img_q'
 RTMP_PIPE = '/dev/shm/rtmp_q'
 w = 640
 h = 480
 c = 3
+
 
 # class Config():
 #     def __init__(self, json_path=None):
@@ -52,6 +54,36 @@ class demo_classer(object):
         self.conn = sqlite3.connect('aquarium.db')
         self.c = self.conn.cursor()
 
+    def result_to_db(self, f, b, d):
+        if not len(b):
+            return
+        # f (128,)
+        # b [[183, 163, 484, 317], [52, 121, 38, 48], [13, 124, 46, 70], [12, 172, 41, 40], [401, 172, 46, 84], [224, 280, 202, 193]]
+        # d
+        # [
+        #     {'box': array([0.28747933, 0.34066093, 1.04517841, 1.00288587]), 'class_name': 'person',
+        #      'score': 0.99528664, 'class_id': 0},
+        #     {'box': array([0.0814497, 0.25219855, 0.14155266, 0.35405122]), 'class_name': 'person', 'score': 0.9562466,
+        #      'class_id': 0},
+        #     {'box': array([0.02163462, 0.2603192, 0.09375, 0.40695381]), 'class_name': 'person', 'score': 0.78090733,
+        #      'class_id': 0},
+        #     {'box': array([0.01887899, 0.35872319, 0.08315149, 0.44294513]), 'class_name': 'person',
+        #      'score': 0.64942235, 'class_id': 0},
+        #     {'box': array([0.62744258, 0.35946582, 0.69955796, 0.53540744]), 'class_name': 'person',
+        #      'score': 0.36657786, 'class_id': 0},
+        #     {'box': array([0.35106538, 0.58400088, 0.66795829, 0.98621112]), 'class_name': 'chair', 'score': 0.62029713,
+        #      'class_id': 56}
+        # ]
+        # filename = f"/dev/shm/{uuid.uuid4().hex}"
+        filename = f"/dev/shm/{time.time()}"
+        np.savez_compressed(filename, allow_pickle=True, f=f, b=b, d=d)
+        # with open('/dev/shm/result_tmp_txt','w') as fid:
+        #     fid.writelines([str(a) for a in f])
+        #     fid.write("="*100)
+        #     fid.writelines([str(a) for a in b])
+        #     fid.write("=" * 100)
+        #     fid.writelines([str(a) for a in d])
+
     def pint_main(self, q, outfifo):
         # imgs_list = ['./images/boe_test.jpg', ]
         # print(config)
@@ -69,7 +101,7 @@ class demo_classer(object):
         #     time.sleep(1)
         # # for _ in range(10):
         # # while 1:
-        # xor = 0
+        xor = 0
         # outfifo = open('/dev/shm/rtmp_q', 'wb')
         # with open(self.config['FIFO'], 'rb') as fifo:
         # cap = cv2.VideoCapture(0)
@@ -87,7 +119,12 @@ class demo_classer(object):
                 time.sleep(.2)
                 continue
             features, boxes, detect_result = self.model.run([img])
+            xor += 1
+            if not (xor - 3):
+                self.result_to_db(features, boxes, detect_result)
+                xor = 0
             plot_multi_images([img], detect_result)
+
             # ret2, frame2 = cv2.imencode('.png', img)
             outq.put(img)
             # if len(data):
@@ -131,9 +168,9 @@ def get_camera_frame(_):
     start(spam)
 
 
-def pintmain(q,outq):
+def pintmain(q, outq):
     xx = demo_classer()
-    xx.pint_main(q,outq)
+    xx.pint_main(q, outq)
 
 
 def p_getframe_python_to_queue(q: Queue):
@@ -171,7 +208,7 @@ def p_getframe_python_to_queue(q: Queue):
     #                 pass
 
 
-def p_putframe_python_to_pipe(q: Queue,outq:Queue):
+def p_putframe_python_to_pipe(q: Queue, outq: Queue):
     while not os.path.exists(RTMP_PIPE):
         print(f'wait for frame pipe : {RTMP_PIPE}')
         time.sleep(1)
@@ -207,17 +244,16 @@ if __name__ == "__main__":
     #         .run_async(pipe_stdin=True))
 
     q = Queue(maxsize=20)
-    outq=Queue(maxsize=20)
+    outq = Queue(maxsize=20)
     gcf = Process(target=get_camera_frame, args=(None,))
-    pm = Process(target=pintmain, args=(q,outq))
+    pm = Process(target=pintmain, args=(q, outq))
     gcf.start()
     # gci = Process(target=gen_camera_frame,args=(None,))
     gcq = Process(target=p_getframe_python_to_queue, args=(q,))
-    gpq = Process(target=p_putframe_python_to_pipe, args=(q,outq))
+    gpq = Process(target=p_putframe_python_to_pipe, args=(q, outq))
     gcq.start()
     gpq.start()
     pm.start()
-
 
     # fire.Fire(demo_classer)
     # gcf.join()
