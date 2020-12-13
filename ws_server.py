@@ -3,8 +3,14 @@ import websockets
 import datetime
 import random
 import json
+import sqlite3
+import threading
+from contextlib import closing
+import numpy as np
+from datetime import datetime
+from api.yolo_reid_pint_api import cosine_distance
 
-HOST = "192.168.8.121"
+HOST = "0.0.0.0"
 connected = set()
 '''
     ws://192.168.8.121/socket/reportDetail    ok
@@ -15,6 +21,10 @@ connected = set()
     }
 '''
 
+total_count,area_a,area_b,area_c,area_d,\
+                q1_count,q2_count,q3_count,\
+                q4_count,q5_count = 0,0,0,0,0,0,0,0,0,0
+current_frame_pedests=np.empty((1,128))
 
 async def server(websocket, path: str):
     if path.endswith('realTrack'):
@@ -151,11 +161,66 @@ async def server(websocket, path: str):
     # print(await websocket.recv())
 
 
-start_server = websockets.serve(server, HOST, 8888, ping_timeout=None)
+def start_wsserver():
+    asyncio.set_event_loop(asyncio.new_event_loop())
+    start_server = websockets.serve(server, HOST, 8888, ping_timeout=None)
+    asyncio.get_event_loop().run_until_complete(start_server)
+    asyncio.get_event_loop().run_forever()
 
-asyncio.get_event_loop().run_until_complete(start_server)
-asyncio.get_event_loop().run_forever()
 
+def statis_data():
+    global total_count,area_a,area_b,area_d,area_d,\
+                q1_count,q2_count,q3_count,\
+                q4_count,q5_count
+    with closing(sqlite3.connect("aquarium.sqlite")) as connection:
+        with closing(connection.cursor()) as cursor:
+            try:
+                sql_file = open("pedes_statis.sql")
+                sql_as_string = sql_file.read()
+                cursor.executescript(sql_as_string)
+
+            except:
+                pass
+
+            #get statis data
+            maxid,minid,total_count,\
+                area_a,area_b,area_c,area_d,\
+                q1_count,q2_count,q3_count,\
+                q4_count,q5_count=cursor.execute("select max(id),min(id),max(total_count),"
+                                       "max(area_a),max(area_b),max(area_c),max(area_d),"
+                                       "max(q1_count),max(q2_count),max(q3_count),max(q4_count),"
+                                       "max(q5_count) "
+                                       "from pedes_statis ").fetchall()[0]
+
+
+
+            #get data from pedetrain
+            pMaxid,pMinid=cursor.execute("select max(id),min(id) from pedestrian").fetchall()[0]
+            for rowid in range(pMinid,pMaxid,200):
+                for _,b,f,d,t in cursor.execute("select * from pedestrian where id < ?",(rowid,)).fetchall():
+                    tbox=np.frombuffer(b,dtype=np.int)
+                    tfeatures=np.frombuffer(f,dtype=np.float32)
+                    tresult=json.loads(d)
+                    ttime=datetime.strptime(t, '%Y%m%d %H:%M:%S')
+                    1   
+​
+
+            records = [(1, 'Glen', 8),
+                       (2, 'Elliot', 9),
+                       (3, 'Bob', 7)]
+            # insert multiple records in a single query
+            c.executemany('INSERT INTO students VALUES(?,?,?);', records);
+            replacesql="INSERT OR REPLACE INTO table(column_list) VALUES(value_list);"
+
+
+if __name__ == '__main__':
+    tWsServer = threading.Thread(target=start_wsserver, args=())
+    tWsServer.start()
+
+    tStatic = threading.Thread(target=statis_data, args=())
+    tStatic.start()
+
+    # pWsServer.join()
 # async def time(websocket, path):
 
 # while True:
@@ -169,5 +234,3 @@ asyncio.get_event_loop().run_forever()
 #
 # asyncio.get_event_loop().run_until_complete(start_server)
 # asyncio.get_event_loop().run_forever()
-
-
