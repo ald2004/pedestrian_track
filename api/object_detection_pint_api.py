@@ -11,6 +11,7 @@ try:
 except:
     import pint_mini
 
+
 class ObjectDectionPintAPIAlgorithm():
 
     def __init__(self, config):
@@ -21,13 +22,12 @@ class ObjectDectionPintAPIAlgorithm():
 
         self._build()
 
-
     def _build(self):
         in_shape = [self.config['batch'], self.config['height'], self.config['width'], 3]
         in_names = pint_mini.mini.StrVector(["input_data"])
         out_names = pint_mini.mini.StrVector(["yolov3/yolov3_head/Conv_6/BiasAdd",
-                                            "yolov3/yolov3_head/Conv_14/BiasAdd",
-                                          "yolov3/yolov3_head/Conv_22/BiasAdd"])
+                                              "yolov3/yolov3_head/Conv_14/BiasAdd",
+                                              "yolov3/yolov3_head/Conv_22/BiasAdd"])
 
         options = pint_mini.mini.Options()
 
@@ -71,7 +71,7 @@ class ObjectDectionPintAPIAlgorithm():
 
     def _post_process(self, det):
         boxes_, scores_, confs_ = self.yolo_det.predict(tuple(det))
-        #print(boxes_.shape, scores_.shape, confs_.shape)
+        # print(boxes_.shape, scores_.shape, confs_.shape)
         pred_scores = scores_ * confs_
 
         ret = []
@@ -83,12 +83,12 @@ class ObjectDectionPintAPIAlgorithm():
             scores = pred_scores[i, :, :]
 
             boxes, scores, labels = nms.cpu_nms(boxes,
-                                                scores, 
+                                                scores,
                                                 self.config["class_number"],
                                                 max_boxes=self.config['max_num'],
                                                 score_thresh=self.config['score_threshold'],
                                                 iou_thresh=self.config['iou_threshold'])
-            #print(boxes, scores, labels)
+            # print(boxes, scores, labels)
             if boxes is None:
                 ret.append([])
                 continue
@@ -104,6 +104,8 @@ class ObjectDectionPintAPIAlgorithm():
                 element = dict()
                 element['box'] = box
                 element['class_name'] = self.class_names[str(labels[j])]
+                if element['class_name'] != 'person':
+                    continue
                 element['score'] = scores[j]
                 element['class_id'] = labels[j]
                 one_image_ret.append(element)
@@ -112,16 +114,15 @@ class ObjectDectionPintAPIAlgorithm():
 
         return ret, boxes_ret, scores_ret, labels_ret
 
-
     def run(self, f):
         imgs = self._pre_process(f)
 
-        start = time.time()
+        # start = time.time()
         result = self.sess.predict([imgs])
         # print(result)
-        end = time.time()
-        print("#" * 40)
-        print("object detection run time is {:.2f} ms".format((end-start)*1000))
+        # end = time.time()
+        # print("#" * 40)
+        # print("object detection run time is {:.2f} ms".format((end-start)*1000))
 
         ret = self._post_process(result)
 

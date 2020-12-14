@@ -6,17 +6,20 @@ from api.reid_pint_api import FeatureExtractionPintAPIAlgorithm as reid_pint_api
 from api.object_detection_pint_api import ObjectDectionPintAPIAlgorithm as yolo_pint_api
 from api.plot_utils import plot_multi_images
 
+
 class Config():
     def __init__(self, json_path=None):
         self.config = {}
         with open(json_path, "r", encoding='utf-8') as f:
             self.config = json.loads(f.read())
 
+
 def cosine_distance(a, b, data_is_normalized=False):
     if not data_is_normalized:
         a = np.asarray(a) / np.linalg.norm(a, axis=0, keepdims=True)
         b = np.asarray(b) / np.linalg.norm(b, axis=0, keepdims=True)
     return 1. - np.dot(a, b.T)
+
 
 class YoloReidPintAPIAlgorithm():
     def __init__(self, config):
@@ -32,14 +35,14 @@ class YoloReidPintAPIAlgorithm():
     def post_process(self, det):
         pass
 
-
     def run(self, images):
         _images = copy.deepcopy(images)
         det_result = self.detector.run(images)
-        #boxes = [[[292, 152, 63, 177], [453, 208, 27, 67]], ]
+        # boxes = [[[292, 152, 63, 177], [453, 208, 27, 67]], ]
         boxes = self.convert_boxes(_images, det_result[0])
         features = self.feature_extracter.run(images, boxes)
         return features, boxes, det_result[0]
+        # return None, None, det_result[0]
 
     def convert_boxes(self, images, detections):
         boxes = []
@@ -62,5 +65,6 @@ class YoloReidPintAPIAlgorithm():
             boxes.append(sigle_image_boxes)
 
         return boxes
+
 
 model = YoloReidPintAPIAlgorithm

@@ -119,6 +119,7 @@ class demo_classer(object):
                 time.sleep(.2)
                 continue
             features, boxes, detect_result = self.model.run([img])
+
             xor += 1
             if not (xor - 3):
                 self.result_to_db(features, boxes, detect_result)
