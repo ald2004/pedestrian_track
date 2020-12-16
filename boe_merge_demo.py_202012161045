@@ -31,7 +31,7 @@ RTMP_PIPE = '/dev/shm/rtmp_q'
 w = 640
 h = 480
 c = 3
-THRES = .4
+THRES = .2
 HOST = "0.0.0.0"
 connected = set()
 total_count = 0
@@ -41,10 +41,6 @@ h0, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, \
 h13, h14, h15, h16, h17, h18, h19, h20, h21, h22, h23 = \
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 realHeat = []
-realTrack = {
-    'id': [],
-    'point': [],
-}
 
 
 # class Config():
@@ -290,7 +286,7 @@ async def server(websocket, path: str):
     global total_count, q0_count, q1_count, q2_count, q3_count, \
         q4_count, q5_count, h0, h1, h2, h3, h4, h5, \
         h6, h7, h8, h9, h10, h11, h12, h13, h14, h15, \
-        h16, h17, h18, h19, h20, h21, h22, h23, realHeat, realTrack
+        h16, h17, h18, h19, h20, h21, h22, h23, connected, realHeat
 
     q0_count, q1_count, q2_count, q3_count, \
     q4_count, q5_count = 10, 20, 30, 40, 50, 60
@@ -374,19 +370,19 @@ async def server(websocket, path: str):
             await websocket.send(json.dumps(xx))
         elif path.endswith('realHeat'):
             print(path, '333333333333')
+            xW = 1280
+            xH = 800
             xx = []
-            # realHeat = distinctlist(realHeat)
             for box in realHeat:
-                x1 = box[0] * w
-                x2 = box[2] * w
-                y1 = box[1] * h
-                y2 = box[3] * h
+                x1 = box[0] * xW
+                x2 = box[2] * xW
+                y1 = box[1] * xH
+                y2 = box[3] * xH
                 xx.append({"x": (x1 + x2) / 2, "y": (y1 + y2) / 2, "num": 1})
 
             # xx = [{"x": 235, "y": 315, "num": 4}, {"x": 100, "y": 100, "num": 4},
             #       {"x": 300, "y": 300, "num": 4}, {"x": 1000, "y": 1000, "num": 4}, ]
             await websocket.send(json.dumps(xx))
-
         else:
             # path.endswith('realTrack'):
             print(path, '4444444444')
@@ -413,60 +409,25 @@ async def server(websocket, path: str):
                   {"id": "1_136", "x": 280, "y": 390, "time": 1606874052384}]
             # while 1:
             for conn in connected:
-                # y = 315
-                # while 1:
-                realbox = realTrack['point']
-                realname = realTrack['id']
-                # with open('/dev/shm/realTrack', 'a') as fid:
-                #     fid.write(json.dumps(realTrack))
-                # print('*' * 99)
-                # print(realTrack)
-                # print('*' * 99)
-                for i in range(len(realbox)):
-                    try:
-                        bname = realname[i]
-
-                        # for b in realbox[i]:
-                        b = realbox[i]
-                        x1 = int(b[0] * w)
-                        x2 = int(b[2] * w)
-                        y1 = int(b[1] * h)
-                        y2 = int(b[3] * h)
-                        jsondump = [
-                            {"id": bname, "x": int((x1 + x2) / 2), "y": int((y1 + y2) / 2), "time": time.time()}]
-                        await conn.send(json.dumps(jsondump))
-                        await asyncio.sleep(.4)
-                        for i in range(int((x1 + x2) / 2), int((x1 + x2) / 2) + 50, 5):
-                            try:
-                                await conn.send(
-                                    json.dumps([{"id": bname, "x": i, "y": int((y1 + y2) / 2), "time": time.time()}]))
-                                await asyncio.sleep(.4)
-                                # y += 5
-                            except RuntimeError:
-                                pass
-                                # print('Set changed size during iteration')
-                                # await conn.recv()
-                                # connected.clear()
-                        # realTrack['point'].remove(realTrack['point'][i])
-                        # realTrack['id'].remove(realTrack['id'][i])
-                    except:
-                        # print('Set changed size during iteration')
-                        # print(realbox[i])
-                        connected.remove(conn)
-                        continue
-                        # await conn.recv()
-
-                    # await asyncio.sleep(1.)
-
-                    # for i in range(800, 235, -5):
-                    #     try:
-                    #         await conn.send(json.dumps([{"id": "1_136", "x": i, "y": y, "time": 1606874052384}]))
-                    #         await asyncio.sleep(1)
-                    #         y -= 5
-                    #     except RuntimeError:
-                    #         print('Set changed size during iteration')
-                    #         await conn.recv()
-                    #         connected.clear()
+                y = 315
+                while 1:
+                    for i in range(235, 800, 5):
+                        try:
+                            await conn.recv()
+                            await conn.send(json.dumps([{"id": "1_136", "x": i, "y": y, "time": 1606874052384}]))
+                            await asyncio.sleep(1)
+                            y += 5
+                        except RuntimeError:
+                            print('Set changed size during iteration')
+                            connected.clear()
+                    for i in range(800, 235, -5):
+                        try:
+                            await conn.send(json.dumps([{"id": "1_136", "x": i, "y": y, "time": 1606874052384}]))
+                            await asyncio.sleep(1)
+                            y -= 5
+                        except RuntimeError:
+                            print('Set changed size during iteration')
+                            connected.clear()
             # print(await conn.recv())
             # async for xx in websocket:
             #     print(xx)
@@ -498,7 +459,7 @@ def statis_to_ws(detsq: Queue):
     global total_count, q0_count, q1_count, q2_count, q3_count, \
         q4_count, q5_count, h0, h1, h2, h3, h4, h5, \
         h6, h7, h8, h9, h10, h11, h12, h13, h14, h15, \
-        h16, h17, h18, h19, h20, h21, h22, h23, realTrack
+        h16, h17, h18, h19, h20, h21, h22, h23
     f, b, d = detsq.get()
     f, b, d = f[0], b[0], d[0]
     # print(f, b, d)
@@ -515,7 +476,7 @@ def statis_to_ws(detsq: Queue):
         # print(type(f), len(f))
         # print(f, b, d)
         # os._exit(0)
-        f, _, d = f[0], b[0], d[0]  # imgs 2 img
+        f, b, d = f[0], b[0], d[0]  # imgs 2 img
 
         # f = [ndarray(128,)] b= [[471, 330, 126, 296],] d= [{'box': array([0.36846708, 0.45896153, 0.46698031, 0.87079132]),
         # 'class_name': 'person', 'score': 0.99644506, 'class_id': 0},]
@@ -539,7 +500,6 @@ def statis_to_ws(detsq: Queue):
             try:
                 if cdistance[argmax] > THRES:
                     found.append(argmax)
-                    print(found, newones)
                     continue
             except:
                 print('*' * 88)
@@ -547,55 +507,30 @@ def statis_to_ws(detsq: Queue):
                 print('*' * 88)
                 raise
             newones.append(i)
-
         maskfound = np.zeros(len(last_person_dict['features']), dtype=bool)
         maskfound[found] = True
         featuresfound = last_person_dict['features'][maskfound, ...]
+
         boxesfound = last_person_dict['boxes'][maskfound, ...]
-        namefound = last_person_dict['names'][maskfound, ...]
 
-        masknew = np.zeros(len(f), dtype=bool)
-        masknew[newones] = True
-        featuresnew = np.asarray(f, dtype=np.float32).reshape(-1, 128)[masknew, ...]
-        namesnew = np.asarray([str(uuid.uuid4())[0:8] for _ in range(len(featuresnew))], dtype='<U8').reshape(-1, 1)
-        boxesnew = np.asarray([x['box'] for x in d], dtype=np.float32).reshape(-1, 4)[masknew, ...]
-
-        # realTrack['id'].extend(namefound.tolist())
-        # realTrack['id'].extend(namesnew.tolist())
-        # realTrack['point'].extend(boxesfound.tolist())
-        # realTrack['point'].extend(boxesnew.tolist())
-
-        realTrack['id']=namefound.tolist()
-        realTrack['id'].extend(namesnew.tolist())
-        realTrack['point']=boxesfound.tolist()
-        realTrack['point'].extend(boxesnew.tolist())
-        print(realTrack)
         maskgone = np.ones(len(last_person_dict['features']), dtype=bool)
         maskgone[found] = False
         resultgone = last_person_dict['features'][maskgone, ...]
         # namegone = last_person_dict['names'][maskgone, ...]
 
         total_count += len(resultgone)
+        print('*' * 88)
+        print(total_count, len(resultgone))
+        print('*' * 88)
 
         name = str(uuid.uuid4())[0:8]
         last_person_dict = {
-            'names': np.vstack((namefound, namesnew)).reshape(-1, 1),
-            'features': np.vstack((featuresfound, featuresnew)).reshape(-1, 128),
-            'boxes': np.vstack((boxesfound, boxesnew)).reshape(-1, 4),
+            'names': np.asarray([str(uuid.uuid4())[0:8] for _ in range(len(f))], dtype='<U8').reshape(-1, 1),
+            'features': np.asarray(f, dtype=np.float32).reshape(-1, 128),
+            'boxes': np.asarray([x['box'] for x in d], dtype=np.float32).reshape(-1, 4),
             'timestamp': time.time()
         }
-        # print('*' * 88)
-        # print(total_count, len(resultgone))
-        # print('*' * 88)
-        # print(last_person_dict)
-        # print('*' * 88)
 
-        # realheatnew = np.asarray(last_person_dict['boxes'], dtype=np.int8).reshape(-1, 4)
-        # realHeatold = np.asarray(realHeat, dtype=np.int8).reshape(-1, 4)
-        # realheattmp = np.vstack((realheatnew, realHeatold))
-        # # realHeat.clear()
-        # for box in np.unique(realheattmp, axis=0):
-        #     realHeat.append(box)
         for box in last_person_dict['boxes']:
             realHeat.append(box)
         nowhour = datetime.datetime.now().hour
@@ -653,7 +588,7 @@ def statis_to_ws(detsq: Queue):
                 detsq.get_nowait()
         except:
             pass
-        time.sleep(1)
+        time.sleep(3)
 
 
 if __name__ == "__main__":
