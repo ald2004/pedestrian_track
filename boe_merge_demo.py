@@ -11,6 +11,7 @@ from api.CameraApi import (
     start
 )
 import multiprocessing
+import threading
 from multiprocessing import Process, Queue
 import ffmpeg
 from api.convertimg import gen_camera_frame
@@ -21,12 +22,29 @@ from api.yolo_reid_pint_api import cosine_distance
 from api.plot_utils import plot_multi_images
 from api.timer import Timer
 import sqlite3
+import asyncio
+import websockets
+import datetime
 
 IMAGE_PIPE = '/dev/shm/img_q'
 RTMP_PIPE = '/dev/shm/rtmp_q'
 w = 640
 h = 480
 c = 3
+THRES = .2
+HOST = "0.0.0.0"
+connected = set()
+total_count = 0
+q0_count, q1_count, q2_count, q3_count, \
+q4_count, q5_count = 0, 0, 0, 0, 0, 0
+h0, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, \
+h13, h14, h15, h16, h17, h18, h19, h20, h21, h22, h23 = \
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+realHeat = []
+realTrack = {
+    'id': [],
+    'point': [],
+}
 
 
 # class Config():
@@ -84,7 +102,7 @@ class demo_classer(object):
         #     fid.write("=" * 100)
         #     fid.writelines([str(a) for a in d])
 
-    def pint_main(self, q, outfifo):
+    def pint_main(self, q: Queue, outq: Queue, detstatisq: Queue):
         # imgs_list = ['./images/boe_test.jpg', ]
         # print(config)
 
@@ -119,15 +137,20 @@ class demo_classer(object):
                 time.sleep(.2)
                 continue
             features, boxes, detect_result = self.model.run([img])
-
-            xor += 1
-            if not (xor - 3):
-                self.result_to_db(features, boxes, detect_result)
-                xor = 0
-            plot_multi_images([img], detect_result)
+            try:
+                if len(features[0]):
+                    detstatisq.put((features, boxes, detect_result))
+            except:
+                print(f"detstatisq err {features, boxes, detect_result}")
+            # xor += 1
+            # if not (xor - 3):
+            #     # self.result_to_db(features, boxes, detect_result)
+            #     xor = 0
+            # plot_multi_images([img], detect_result)
 
             # ret2, frame2 = cv2.imencode('.png', img)
-            outq.put(img)
+            # outq.put(img)
+            outq.put(detect_result)
             # if len(data):
             # if f:
             # buff = np.frombuffer(data, np.uint8)
@@ -162,16 +185,19 @@ class demo_classer(object):
 
 
 def get_camera_frame(_):
-    print('=' * 60)
-    print(f'start get camera frame with process :{Process.name}')
-    print('=' * 60)
-    spam = get_ins()
-    start(spam)
+    # print('=' * 60)
+    # print(f'start get camera frame with process :{Process.name}')
+    # print('=' * 60)
+    try:
+        spam = get_ins()
+        start(spam)
+    except:
+        pass
 
 
-def pintmain(q, outq):
+def pintmain(q, outq, detstatisq):
     xx = demo_classer()
-    xx.pint_main(q, outq)
+    xx.pint_main(q, outq, detstatisq)
 
 
 def p_getframe_python_to_queue(q: Queue):
@@ -190,7 +216,7 @@ def p_getframe_python_to_queue(q: Queue):
             except:
                 print('q full')
                 try:
-                    for _ in range(200):
+                    for _ in range(20):
                         q.get_nowait()
                 except:
                     pass
@@ -213,17 +239,9 @@ def p_putframe_python_to_pipe(q: Queue, outq: Queue):
     while not os.path.exists(RTMP_PIPE):
         print(f'wait for frame pipe : {RTMP_PIPE}')
         time.sleep(1)
-    with open(RTMP_PIPE, 'wb') as outfifo:
+
+    def put_real_stream(outfifo, q):
         while 1:
-            outi = outq.get()
-            ret2, frame3 = cv2.imencode('.png', outi)
-            outfifo.write(frame3)
-            # try:
-            #     outi=outq.get()
-            #     ret2, frame3 = cv2.imencode('.png', outi)
-            #     outfifo.write(frame3)
-            # except:
-            #     pass
             try:
                 i = q.get()
                 ret2, frame2 = cv2.imencode('.png', i)
@@ -231,6 +249,396 @@ def p_putframe_python_to_pipe(q: Queue, outq: Queue):
             except:
                 time.sleep(.5)
                 print(f'none q img')
+
+    def put_det_stream(outfifo, outq, realq):
+        while 1:
+            # outi = outq.get()
+            detect_result = outq.get()
+            img = realq.get()
+            plot_multi_images([img], detect_result)
+
+            ret2, frame3 = cv2.imencode('.png', img)
+            outfifo.write(frame3)
+
+    with open(RTMP_PIPE, 'wb') as outfifo:
+        t1 = threading.Thread(target=put_real_stream, args=(outfifo, q))
+        t2 = threading.Thread(target=put_det_stream, args=(outfifo, outq, q))
+        t1.start()
+        t2.start()
+        while 1:
+            time.sleep(99)
+        # while 1:
+        #     outi = outq.get()
+        #     ret2, frame3 = cv2.imencode('.png', outi)
+        #     outfifo.write(frame3)
+        # try:
+        #     outi=outq.get()
+        #     ret2, frame3 = cv2.imencode('.png', outi)
+        #     outfifo.write(frame3)
+        # except:
+        #     pass
+        # try:
+        #     i = q.get()
+        #     ret2, frame2 = cv2.imencode('.png', i)
+        #     outfifo.write(frame2)
+        # except:
+        #     time.sleep(.5)
+        #     print(f'none q img')
+
+
+async def server(websocket, path: str):
+    global total_count, q0_count, q1_count, q2_count, q3_count, \
+        q4_count, q5_count, h0, h1, h2, h3, h4, h5, \
+        h6, h7, h8, h9, h10, h11, h12, h13, h14, h15, \
+        h16, h17, h18, h19, h20, h21, h22, h23, connected, realHeat, realTrack
+
+    q0_count, q1_count, q2_count, q3_count, \
+    q4_count, q5_count = 10, 20, 30, 40, 50, 60
+    if path.endswith('realTrack'):
+        connected.add(websocket)
+    # pk = path.split('/')[-1]
+    # connected[pk] = websocket
+    # realHeat
+    # realTrack
+    # realHeat
+    # reportDetail
+    # reportByHour
+    # print(pk,'111111111111')
+    try:
+        # async for message in websocket:
+        # for conn in connected:
+        print(f'pth is :{path}')
+        if path.endswith('reportDetail'):
+            print(path, '111111111111')
+            # xx = {
+            #     "code": 200,
+            #     "data": [
+            #         {"areaCount": {"A": 3938, "B": 0, "C": 11, "D": 0},
+            #          "ageCount": {"46-60": "10%", "61": "15%", "31-45": "5%", "21-30": "50%", "0-20": "20%"},
+            #          "genderCount": {"men": {"num": 2, "percent": "10%"}, "women": {"num": 4, "percent": "20%"}},
+            #          "totalCount": 31, "faceCount": 0,
+            #          "personCount": {"60-120": "0", "0-15": "18", "30-45": "0", "15-30": "0", ">120": "0", "45-60": "0"}}
+            #     ],
+            #     "success": True
+            # }
+            xx = {"areaCount": {"a": 3938, "b": 0, "c": 11, "d": 0},
+                  "ageCount": {"46-60": "10%", "61": "15%", "31-45": "5%", "21-30": "50%", "0-20": "20%"},
+                  "genderCount": {"men": {"num": 2, "percent": "10%"}, "women": {"num": 4, "percent": "20%"}},
+                  "totalCount": f"{total_count}", "faceCount": 0,
+                  # "personCount": {"60-120": "50", "0-15": "10", "30-45": "30", "15-30": "20", ">120": "60",
+                  #                 "45-60": "40"}},
+                  "personCount": {"60-120": f"{q4_count}", "0-15": f"{q0_count}", "30-45": f"{q2_count}",
+                                  "15-30": f"{q1_count}", ">120": f"{q5_count}",
+                                  "45-60": f"{q3_count}"}}
+            await websocket.send(json.dumps(xx))
+        elif path.endswith('reportByHour'):
+            print(path, '22222222222222')
+            # xx = {
+            #     "code": 200,
+            #     "data": {
+            #         "bankName": "ICBC",
+            #         "times": {
+            #             "0-15": 6626,
+            #             "15-30": 0,
+            #             "30-45": 0,
+            #             "45-60": 0,
+            #             "60-120": 0,
+            #             ">120": 0
+            #         },
+            #         "aresUser": {
+            #             "A": 15485,
+            #             "B": 22217,
+            #             "C": 31327,
+            #             "D": 13794
+            #         },
+            #         "hoursUser": {
+            #             "<8:00": 0,
+            #             "8:00-10:00": 968,
+            #             "10:00-12:00": 1894,
+            #             "12:00-14:00": 1900,
+            #             "14:00-16:00": 1893,
+            #             "16:00-18:00": 830,
+            #             ">18:00": 0
+            #         },
+            #         "totalUser": 7485,
+            #         "aveUser": 7485
+            #     },
+            #     "sucdess": True
+            # }
+            # xx = {"0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "5": 0, "6": 0, "7": 0, "8": 7, "9": 14, "10": 10,
+            #       "11": 11, "12": 12, "13": 13, "14": 14, "15": 15, "16": 16, "17": 17, "18": 18, "19": 19,
+            #       "20": 20, "21": 21, "22": 22}
+            xx = {"0": h0, "1": h1, "2": h2, "3": h3, "4": h4, "5": h5, "6": h6, "7": h7, "8": h8, "9": h9, "10": h10,
+                  "11": h11, "12": h12, "13": h13, "14": h14, "15": h15, "16": h16, "17": h17, "18": h18, "19": h19,
+                  "20": h20, "21": h21, "22": h22, "23": h23}
+            await websocket.send(json.dumps(xx))
+        elif path.endswith('realHeat'):
+            print(path, '333333333333')
+            xx = []
+            # realHeat = distinctlist(realHeat)
+            for box in realHeat:
+                x1 = box[0] * w
+                x2 = box[2] * w
+                y1 = box[1] * h
+                y2 = box[3] * h
+                xx.append({"x": (x1 + x2) / 2, "y": (y1 + y2) / 2, "num": 1})
+
+            # xx = [{"x": 235, "y": 315, "num": 4}, {"x": 100, "y": 100, "num": 4},
+            #       {"x": 300, "y": 300, "num": 4}, {"x": 1000, "y": 1000, "num": 4}, ]
+            await websocket.send(json.dumps(xx))
+
+        else:
+            # path.endswith('realTrack'):
+            print(path, '4444444444')
+            xx = {
+                "code": 200,
+                "data": [
+                    {"id": "1", "x": 2750, "y": 9750, "time": 1541430823000},
+                    {"id": "2", "x": 1250, "y": 4750, "time": 1541430823000},
+                    {"id": "3", "x": 2750, "y": 6250, "time": 1541430823000},
+                    {"id": "4", "x": 3250, "y": 5250, "time": 1541430823000},
+                    {"id": "5", "x": 2250, "y": 10750, "time": 1541430823000},
+                    {"id": "5", "x": 2250, "y": 10750, "time": 1541430823002},
+                    {"id": "1", "x": 2750, "y": 10250, "time": 1541430823002},
+                    {"id": "2", "x": 1250, "y": 5250, "time": 1541430823002},
+                    {"id": "3", "x": 2750, "y": 6250, "time": 1541430823002},
+                    {"id": "4", "x": 3250, "y": 5750, "time": 1541430823002},
+                    {"id": "1", "x": 2750, "y": 9750, "time": 1541430823004},
+                    {"id": "2", "x": 1250, "y": 4750, "time": 1541430823004},
+                    {"id": "3", "x": 2750, "y": 6250, "time": 1541430823004}
+                ],
+                "sucdess": True
+            }
+            xx = [{"id": "1_136", "x": 235, "y": 315, "time": 1606874052384},
+                  {"id": "1_136", "x": 280, "y": 390, "time": 1606874052384}]
+            # while 1:
+            for conn in connected:
+                # y = 315
+                # while 1:
+                realbox = realTrack['point']
+                realname = realTrack['id']
+                print('*' * 99)
+                print(realTrack)
+                print('*' * 99)
+                for i in range(len(realbox)):
+                    try:
+                        bname = realname[i]
+
+                        # for b in realbox[i]:
+                        b = realbox[i]
+                        x1 = b[0] * w
+                        x2 = b[2] * w
+                        y1 = b[1] * h
+                        y2 = b[3] * h
+
+                        await conn.send(json.dumps(
+                            [{"id": bname, "x": (x1 + x2) / 2, "y": (y1 + y2) / 2, "time": time.time()}]))
+                        await asyncio.sleep(.3)
+                    except:
+                        print('Set changed size during iteration')
+                        await conn.recv()
+                        connected.clear()
+                    # await asyncio.sleep(1.)
+
+                    # for i in range(235, 800, 5):
+                    #     try:
+                    #
+                    #         await conn.send(json.dumps([{"id": "1_136", "x": i, "y": y, "time": 1606874052384}]))
+                    #         await asyncio.sleep(1)
+                    #         y += 5
+                    #     except RuntimeError:
+                    #         print('Set changed size during iteration')
+                    #         await conn.recv()
+                    #         connected.clear()
+                    # for i in range(800, 235, -5):
+                    #     try:
+                    #         await conn.send(json.dumps([{"id": "1_136", "x": i, "y": y, "time": 1606874052384}]))
+                    #         await asyncio.sleep(1)
+                    #         y -= 5
+                    #     except RuntimeError:
+                    #         print('Set changed size during iteration')
+                    #         await conn.recv()
+                    #         connected.clear()
+            # print(await conn.recv())
+            # async for xx in websocket:
+            #     print(xx)
+            # await asyncio.sleep(1)
+            # await asyncio.sleep(.1)
+        # print(f"connections num :{len(connected)}")
+    finally:
+        # connected.clear()
+        pass
+
+    # print(await websocket.recv())
+
+
+def start_wsserver():
+    asyncio.set_event_loop(asyncio.new_event_loop())
+    start_server = websockets.serve(server, HOST, 8888, ping_timeout=None)
+    asyncio.get_event_loop().run_until_complete(start_server)
+    asyncio.get_event_loop().run_forever()
+
+
+def cosine_distance_fine(a, b):
+    return a @ b.T
+
+
+def statis_to_ws(detsq: Queue):
+    tWsServer = threading.Thread(target=start_wsserver, args=())
+    tWsServer.start()
+    cur_person_dict = {}
+    global total_count, q0_count, q1_count, q2_count, q3_count, \
+        q4_count, q5_count, h0, h1, h2, h3, h4, h5, \
+        h6, h7, h8, h9, h10, h11, h12, h13, h14, h15, \
+        h16, h17, h18, h19, h20, h21, h22, h23, realTrack
+    f, b, d = detsq.get()
+    f, b, d = f[0], b[0], d[0]
+    # print(f, b, d)
+    # last_person_dict=dict(zip([str(uuid.uuid4())[0:8] for _ in range(len(f))], f))
+    last_person_dict = {
+        'names': np.asarray([str(uuid.uuid4())[0:8] for _ in range(len(f))], dtype='<U8').reshape(-1, 1),
+        'features': np.asarray(f, dtype=np.float32).reshape(-1, 128),
+        'boxes': np.asarray([x['box'] for x in d], dtype=np.float32).reshape(-1, 4),
+        'timestamp': time.time()
+    }
+    while 1:
+        f, b, d = detsq.get()
+        # print('*' * 99)
+        # print(type(f), len(f))
+        # print(f, b, d)
+        # os._exit(0)
+        f, _, d = f[0], b[0], d[0]  # imgs 2 img
+
+        # f = [ndarray(128,)] b= [[471, 330, 126, 296],] d= [{'box': array([0.36846708, 0.45896153, 0.46698031, 0.87079132]),
+        # 'class_name': 'person', 'score': 0.99644506, 'class_id': 0},]
+        found = []
+        newones = []
+        for i in range(len(f)):
+            # print('*'*99)
+            # print(type(f),len(f))
+            # print(last_person_dict)
+            # os._exit(0)
+            currentfeature = np.asarray(f[i], dtype=np.float32).reshape(-1, 128)
+            cdistance = cosine_distance_fine(currentfeature,
+                                             last_person_dict['features']).reshape(
+                -1)  # cdistance (len(last_person_number),)
+            # argmin = np.argmin(np.abs(cdistance))
+            # argmin = np.argmin(cdistance)
+            argmax = np.argmax(cdistance)
+            print('*' * 88)
+            print(cdistance, argmax)
+            print('*' * 88)
+            try:
+                if cdistance[argmax] > THRES:
+                    found.append(argmax)
+                    continue
+            except:
+                print('*' * 88)
+                print(cdistance, argmax, last_person_dict['features'], currentfeature)
+                print('*' * 88)
+                raise
+            newones.append(i)
+        maskfound = np.zeros(len(last_person_dict['features']), dtype=bool)
+        maskfound[found] = True
+        featuresfound = last_person_dict['features'][maskfound, ...]
+        boxesfound = last_person_dict['boxes'][maskfound, ...]
+        namefound = last_person_dict['names'][maskfound, ...]
+
+        masknew = np.zeros(len(f), dtype=bool)
+        masknew[newones] = True
+        featuresnew = np.asarray(f, dtype=np.float32).reshape(-1, 128)[masknew, ...]
+        namesnew = np.asarray([str(uuid.uuid4())[0:8] for _ in range(len(featuresnew))], dtype='<U8').reshape(-1, 1)
+        boxesnew = np.asarray([x['box'] for x in d], dtype=np.float32).reshape(-1, 4)[masknew, ...]
+
+        realTrack['id'] = namefound.tolist()
+        realTrack['id'].extend(namesnew.tolist())
+        realTrack['point'] = boxesfound.tolist()
+        realTrack['point'].append(boxesnew.tolist())
+
+        maskgone = np.ones(len(last_person_dict['features']), dtype=bool)
+        maskgone[found] = False
+        resultgone = last_person_dict['features'][maskgone, ...]
+        # namegone = last_person_dict['names'][maskgone, ...]
+
+        total_count += len(resultgone)
+
+        name = str(uuid.uuid4())[0:8]
+        last_person_dict = {
+            'names': np.asarray(realTrack['id'], dtype='<U8').reshape(-1, 1),
+            'features': np.vstack((featuresfound, featuresnew)).reshape(-1, 128),
+            'boxes': np.vstack((boxesfound, boxesnew)).reshape(-1, 4),
+            'timestamp': time.time()
+        }
+        # print('*' * 88)
+        # print(total_count, len(resultgone))
+        # print('*' * 88)
+        # print(last_person_dict)
+        # print('*' * 88)
+
+        # realheatnew = np.asarray(last_person_dict['boxes'], dtype=np.int8).reshape(-1, 4)
+        # realHeatold = np.asarray(realHeat, dtype=np.int8).reshape(-1, 4)
+        # realheattmp = np.vstack((realheatnew, realHeatold))
+        # # realHeat.clear()
+        # for box in np.unique(realheattmp, axis=0):
+        #     realHeat.append(box)
+        for box in last_person_dict['boxes']:
+            realHeat.append(box)
+        nowhour = datetime.datetime.now().hour
+        if nowhour == 0:
+            h0 += len(resultgone)
+        elif nowhour == 1:
+            h1 += len(resultgone)
+        elif nowhour == 2:
+            h2 += len(resultgone)
+        elif nowhour == 3:
+            h3 += len(resultgone)
+        elif nowhour == 4:
+            h4 += len(resultgone)
+        elif nowhour == 5:
+            h5 += len(resultgone)
+        elif nowhour == 6:
+            h6 += len(resultgone)
+        elif nowhour == 7:
+            h7 += len(resultgone)
+        elif nowhour == 8:
+            h8 += len(resultgone)
+        elif nowhour == 9:
+            h9 += len(resultgone)
+        elif nowhour == 10:
+            h10 += len(resultgone)
+        elif nowhour == 11:
+            h11 += len(resultgone)
+        elif nowhour == 12:
+            h12 += len(resultgone)
+        elif nowhour == 13:
+            h13 += len(resultgone)
+        elif nowhour == 14:
+            h14 += len(resultgone)
+        elif nowhour == 15:
+            h15 += len(resultgone)
+        elif nowhour == 16:
+            h16 += len(resultgone)
+        elif nowhour == 17:
+            h17 += len(resultgone)
+        elif nowhour == 18:
+            h18 += len(resultgone)
+        elif nowhour == 19:
+            h19 += len(resultgone)
+        elif nowhour == 20:
+            h20 += len(resultgone)
+        elif nowhour == 21:
+            h21 += len(resultgone)
+        elif nowhour == 22:
+            h22 += len(resultgone)
+        elif nowhour == 23:
+            h23 += len(resultgone)
+
+        try:
+            while 1:
+                detsq.get_nowait()
+        except:
+            pass
+        time.sleep(3)
 
 
 if __name__ == "__main__":
@@ -246,8 +654,10 @@ if __name__ == "__main__":
 
     q = Queue(maxsize=20)
     outq = Queue(maxsize=20)
+    detstatisq = Queue()
+
     gcf = Process(target=get_camera_frame, args=(None,))
-    pm = Process(target=pintmain, args=(q, outq))
+    pm = Process(target=pintmain, args=(q, outq, detstatisq))
     gcf.start()
     # gci = Process(target=gen_camera_frame,args=(None,))
     gcq = Process(target=p_getframe_python_to_queue, args=(q,))
@@ -256,6 +666,8 @@ if __name__ == "__main__":
     gpq.start()
     pm.start()
 
+    statisprocess = Process(target=statis_to_ws, args=(detstatisq,))
+    statisprocess.start()
     # fire.Fire(demo_classer)
     # gcf.join()
     # pm.join()

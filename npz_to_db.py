@@ -11,6 +11,7 @@ from contextlib import closing
 def read_npz_to_db(conn, cur):
     os.chdir('/dev/shm')
     filenames = glob.glob('/dev/shm/*.npz')
+    # cur.execute("delete from pedestrian")
     # f (128,)
     # b [[183, 163, 484, 317], [52, 121, 38, 48], [13, 124, 46, 70], [12, 172, 41, 40], [401, 172, 46, 84], [224, 280, 202, 193]]
     # d
@@ -35,10 +36,13 @@ def read_npz_to_db(conn, cur):
         timestring = f"{y}{m}{d} {hh}:{mm}:{ss}"
         try:
             compressed = np.load(filename, allow_pickle=True)
+            features, boxes, detect_result = compressed['f'][0], compressed['b'][0], compressed['d'][0]
         except:
             print("zipfile.BadZipFile: File is not a zip file")
-            os.rename(filename, filename + '.badzip')
-        features, boxes, detect_result = compressed['f'][0], compressed['b'][0], compressed['d'][0]
+            # os.rename(filename, filename + '.badzip')
+            os.remove(filename)
+            continue
+
         # print(len(features), le*' * 88)
         #         # print(timestrin(boxes), len(detect_result))
         # print('ng)
