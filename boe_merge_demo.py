@@ -57,6 +57,14 @@ realTrack = {
 #         self.config['h'] = 480
 #         self.config['c'] = 3
 
+def distinctlist(intlist):
+    s = set()
+    r = []
+    for i in intlist:
+        s.add((i[0], i[1], i[2], i[3]))
+    for i in s:
+        r.append([i[0], i[1], i[2], i[3]])
+    return r
 
 class demo_classer(object):
     def __init__(self):
@@ -375,7 +383,7 @@ async def server(websocket, path: str):
         elif path.endswith('realHeat'):
             print(path, '333333333333')
             xx = []
-            # realHeat = distinctlist(realHeat)
+            realHeat = distinctlist(realHeat)
             for box in realHeat:
                 x1 = box[0] * w
                 x2 = box[2] * w
