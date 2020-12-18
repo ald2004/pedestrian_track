@@ -145,10 +145,10 @@ class demo_classer(object):
             # f, img = cap.read()
             try:
                 img: np.ndarray = q.get()
-                features, boxes, detect_result = self.model.run([img])
             except:
                 time.sleep(.2)
                 continue
+            features, boxes, detect_result = self.model.run([img])
             try:
                 if len(features[0]):
                     detstatisq.put((features, boxes, detect_result))
@@ -401,7 +401,6 @@ async def server(websocket, path: str):
 
         else:
             # path.endswith('realTrack'):
-            tstamp = time.time()
             print(path, '4444444444')
             xx = {
                 "code": 200,
@@ -446,13 +445,13 @@ async def server(websocket, path: str):
                         y1 = int(b[1] * h)
                         y2 = int(b[3] * h)
                         jsondump = [
-                            {"id": bname, "x": int((x1 + x2) / 2), "y": int((y1 + y2) / 2), "time": 1606874052384}]
+                            {"id": bname, "x": int((x1 + x2) / 2), "y": int((y1 + y2) / 2), "time": time.time()}]
                         await conn.send(json.dumps(jsondump))
                         await asyncio.sleep(.4)
                         for i in range(int((x1 + x2) / 2), int((x1 + x2) / 2) + 50, 5):
                             try:
                                 await conn.send(
-                                    json.dumps([{"id": bname, "x": i, "y": int((y1 + y2) / 2), "time": 1606874052384}]))
+                                    json.dumps([{"id": bname, "x": i, "y": int((y1 + y2) / 2), "time": time.time()}]))
                                 await asyncio.sleep(.4)
                                 # y += 5
                             except RuntimeError:
@@ -522,11 +521,6 @@ def statis_to_ws(detsq: Queue):
         'boxes': np.asarray([x['box'] for x in d], dtype=np.float32).reshape(-1, 4),
         'timestamp': time.time()
     }
-    nowhour = datetime.datetime.now().hour
-    if nowhour == 0:
-        h0, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, \
-        h13, h14, h15, h16, h17, h18, h19, h20, h21, h22, h23 = \
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
     while 1:
         f, b, d = detsq.get()
         # print('*' * 99)
@@ -616,6 +610,7 @@ def statis_to_ws(detsq: Queue):
         #     realHeat.append(box)
         for box in last_person_dict['boxes']:
             realHeat.append(box)
+        nowhour = datetime.datetime.now().hour
         if nowhour == 0:
             h0 += len(resultgone)
         elif nowhour == 1:
@@ -715,8 +710,8 @@ if __name__ == "__main__":
         try:
             while cap.isOpened() & f:
                 f, i = cap.read()
-                # resized = cv2.resize(i, (w, h), interpolation=cv2.INTER_CUBIC)
-                input_frame_q.put(i)
+                resized = cv2.resize(i, (w, h), interpolation=cv2.INTER_CUBIC)
+                input_frame_q.put(resized)
         except:
             pass
 
