@@ -7,7 +7,8 @@ app = Flask(__name__)
 HOST = "0.0.0.0"
 W = 640
 H = 480
-
+# W = 1920
+# H = 1080
 # Testing URL
 @app.route('/api/v1/config/', methods=['GET'])
 def hello_world():

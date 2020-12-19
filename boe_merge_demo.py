@@ -257,22 +257,27 @@ def p_putframe_python_to_pipe(q: Queue, outq: Queue):
         while 1:
             try:
                 i = q.get()
-                ret2, frame2 = cv2.idmencode('.png', i)
+                ret2, frame2 = cv2.imencode('.png', i)
                 outfifo.write(frame2)
                 # outfifo.write(i)
             except:
                 time.sleep(.5)
                 print(f'none q img')
+                # raise
 
     def put_det_stream(outfifo, outq, realq):
         while 1:
             # outi = outq.get()
             detect_result = outq.get()
             img = realq.get()
-            plot_multi_images([img], detect_result)
+            try:
+                if img.shape[2]==3:
+                    plot_multi_images([img], detect_result)
 
-            ret2, frame3 = cv2.imencode('.png', img)
-            outfifo.write(frame3)
+                    ret2, frame3 = cv2.imencode('.png', img)
+                    outfifo.write(frame3)
+            except:
+                pass
             # outfifo.write(img)
 
     with open(RTMP_PIPE, 'wb') as outfifo:
@@ -392,7 +397,7 @@ async def server(websocket, path: str):
         elif path.endswith('realHeat'):
             print(path, '333333333333')
             xx = []
-            realHeat = distinctlist(realHeat)
+            # realHeat = distinctlist(realHeat)
             for box in realHeat:
                 x1 = box[0] * w
                 x2 = box[2] * w
@@ -402,6 +407,7 @@ async def server(websocket, path: str):
 
             # xx = [{"x": 235, "y": 315, "num": 4}, {"x": 100, "y": 100, "num": 4},
             #       {"x": 300, "y": 300, "num": 4}, {"x": 1000, "y": 1000, "num": 4}, ]
+            # print(json.dumps(xx))
             await websocket.send(json.dumps(xx))
 
         else:
@@ -443,7 +449,7 @@ async def server(websocket, path: str):
                 for i in range(len(realbox)):
                     try:
                         bname = realname[i]
-                        # bname = '136'
+                        # bname = '1_136'
                         bname = f"1_{realname[i][0][:4]}"
                         # for b in realbox[i]:
                         b = realbox[i]
@@ -477,6 +483,7 @@ async def server(websocket, path: str):
                         # print('Set changed size during iteration')
                         # print(realbox[i])
                         connected.remove(conn)
+                        # raise
                         continue
                         # await conn.recv()
 
@@ -497,6 +504,8 @@ async def server(websocket, path: str):
             # await asyncio.sleep(1)
             # await asyncio.sleep(.1)
         # print(f"connections num :{len(connected)}")
+    except:
+        pass
     finally:
         # connected.clear()
         pass
@@ -506,7 +515,9 @@ async def server(websocket, path: str):
 
 def start_wsserver():
     asyncio.set_event_loop(asyncio.new_event_loop())
-    start_server = websockets.serve(server, HOST, 8888, ping_timeout=None)
+    # start_server = websockets.serve(server, HOST, 8888, ping_timeout=None)
+    start_server = websockets.serve(server, HOST, 8888)
+
     asyncio.get_event_loop().run_until_complete(start_server)
     asyncio.get_event_loop().run_forever()
 
@@ -565,18 +576,18 @@ def statis_to_ws(detsq: Queue):
             # if current people is found in history all features
             # all peple found start
             currentfeature = np.asarray(f[i], dtype=np.float32).reshape(-1, 128)
-            distince_from_allpeople = cosine_distance(currentfeature, all_people_features).reshape(-1)
-            argmax_all = np.argmax(distince_from_allpeople)
-            # print('-' * 88)
-            # print('people found from history all list....', all_people_features.shape, distince_from_allpeople)
-            # print('-' * 88)
-            if distince_from_allpeople[argmax_all] > THRES_ALL:
-                # print('+' * 88)
-                # print('people found from history all list....', all_people_features.shape, distince_from_allpeople)
-                # print('+' * 88)
-                continue
-            all_people_features = np.vstack((all_people_features, currentfeature))
-            all_people_features = np.unique(all_people_features, axis=0)
+            # distince_from_allpeople = cosine_distance(currentfeature, all_people_features).reshape(-1)
+            # argmax_all = np.argmax(distince_from_allpeople)
+            # # print('-' * 88)
+            # # print('people found from history all list....', all_people_features.shape, distince_from_allpeople)
+            # # print('-' * 88)
+            # if distince_from_allpeople[argmax_all] > THRES_ALL:
+            #     # print('+' * 88)
+            #     # print('people found from history all list....', all_people_features.shape, distince_from_allpeople)
+            #     # print('+' * 88)
+            #     continue
+            # all_people_features = np.vstack((all_people_features, currentfeature))
+            # all_people_features = np.unique(all_people_features, axis=0)
             # all peple found end
             ##################
 
@@ -592,7 +603,7 @@ def statis_to_ws(detsq: Queue):
             try:
                 if cdistance[argmax] > THRES:
                     found.append(argmax)
-                    print(found, newones)
+                    # print(found, newones)
                     continue
             except:
                 print('*' * 88)
@@ -731,9 +742,12 @@ if __name__ == "__main__":
 
     pm = Process(target=pintmain, args=(input_frame_q, outq, detstatisq))
     pm.start()
+
     # gci = Process(target=gen_camera_frame,args=(None,))
     # gcq = Process(target=p_getframe_python_to_queue, args=(q,))
+
     gpq = Process(target=p_putframe_python_to_pipe, args=(input_frame_q, outq))
+
     # gcq.start()
     gpq.start()
 
@@ -752,12 +766,12 @@ if __name__ == "__main__":
                 f, i = cap.read()
                 # resized = cv2.resize(i, (w, h), interpolation=cv2.INTER_CUBIC)
                 try:
-                    if i.shape[2] == 3:
-                        input_frame_q.put(i)
+                    # if i.shape[2] == 3:
+                    input_frame_q.put(i)
                 except:
-                    continue
+                    raise
         except:
-            pass
+            raise
 
 '''
  ffmpeg -hwaccel_device /dev/dri/card0 -r 9 -i /dev/shm/rtmp_q -an -s 320*240  -f flv -r 9 rtmp://192.168.8.121/live/bbb -c:v h264_vaapi

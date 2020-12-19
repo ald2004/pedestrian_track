@@ -12,7 +12,7 @@ from datetime import datetime
 import time
 
 from api.yolo_reid_pint_api import cosine_distance
-# from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.metrics.pairwise import cosine_similarity
 
 HOST = "0.0.0.0"
 connected = set()
@@ -35,14 +35,14 @@ ac_count, ad_count, ae_count, af_count, b0_count, b1_count, b2_count, \
 b3_count, b4_count, b5_count, b6_count, b7_count = 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 
 
-# def cosine_similarity(X, Y=None, dense_output=True):
-#     X_normalized = np.asarray(X) / np.linalg.norm(X, axis=0, keepdims=True)
-#     Y_normalized = np.asarray(Y) / np.linalg.norm(Y, axis=0, keepdims=True)
-#     if X_normalized.ndim > 2 or Y_normalized.ndim > 2:
-#         ret = np.dot(X_normalized, Y_normalized.T)
-#     else:
-#         ret = X_normalized @ Y_normalized.T
-#     return np.abs(ret)
+def cosine_similarity(X, Y=None, dense_output=True):
+    X_normalized = np.asarray(X) / np.linalg.norm(X, axis=0, keepdims=True)
+    Y_normalized = np.asarray(Y) / np.linalg.norm(Y, axis=0, keepdims=True)
+    if X_normalized.ndim > 2 or Y_normalized.ndim > 2:
+        ret = np.dot(X_normalized, Y_normalized.T)
+    else:
+        ret = X_normalized @ Y_normalized.T
+    return np.abs(ret)
 
 
 async def server(websocket, path: str):
@@ -253,21 +253,19 @@ def statis_data():
                         tfeatures = np.frombuffer(f, dtype=np.float32)
                         # tresult = json.loads(d)
                         ttime = datetime.strptime(t, '%Y%m%d %H:%M:%S').timestamp()
-                        current_frame_pedests['f'] = np.vstack((current_frame_pedests['f'], tfeatures))
-                        current_frame_pedests['t'] = np.vstack((current_frame_pedests['t'], ttime))
-                        # try:
-                        #     current_frame_pedests['f'] = np.vstack((current_frame_pedests['f'], tfeatures))
-                        #     current_frame_pedests['t'] = np.vstack((current_frame_pedests['t'], ttime))
-                        # except:
-                        #     continue
+                        try:
+                            current_frame_pedests['f'] = np.vstack((current_frame_pedests['f'], tfeatures))
+                            current_frame_pedests['t'] = np.vstack((current_frame_pedests['t'], ttime))
+                        except:
+                            continue
                     # compute similarity
                     pre_f = pre_frame_pedests['f'][1:]
                     cur_f = current_frame_pedests['f'][1:]
-                    #if len(pre_f):
-                    #    print(pre_f)
-                    #    print('==' * 80)
-                    #    print(cur_f)
-                    #    os._exit(0)
+                    if len(pre_f):
+                        print(pre_f)
+                        print('==' * 80)
+                        print(cur_f)
+                        os._exit(0)
                     if len(pre_f) and len(cur_f):
                         print('*'*300)
                         # distmatrix = cosine_similarity(pre_f, cur_f)
