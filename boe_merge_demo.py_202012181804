@@ -34,8 +34,7 @@ RTMP_PIPE = '/dev/shm/rtmp_q'
 w = 640
 h = 480
 c = 3
-THRES = .15
-THRES_ALL = .7
+THRES = .3
 HOST = "0.0.0.0"
 connected = set()
 total_count = 0
@@ -257,9 +256,8 @@ def p_putframe_python_to_pipe(q: Queue, outq: Queue):
         while 1:
             try:
                 i = q.get()
-                ret2, frame2 = cv2.idmencode('.png', i)
+                ret2, frame2 = cv2.imencode('.png', i)
                 outfifo.write(frame2)
-                # outfifo.write(i)
             except:
                 time.sleep(.5)
                 print(f'none q img')
@@ -273,13 +271,10 @@ def p_putframe_python_to_pipe(q: Queue, outq: Queue):
 
             ret2, frame3 = cv2.imencode('.png', img)
             outfifo.write(frame3)
-            # outfifo.write(img)
 
     with open(RTMP_PIPE, 'wb') as outfifo:
         t1 = threading.Thread(target=put_real_stream, args=(outfifo, q))
         t2 = threading.Thread(target=put_det_stream, args=(outfifo, outq, q))
-        # t1 = multiprocessing.Process(target=put_real_stream, args=(outfifo, q))
-        # t2 = multiprocessing.Process(target=put_det_stream, args=(outfifo, outq, q))
         t1.start()
         t2.start()
         while 1:
@@ -443,8 +438,7 @@ async def server(websocket, path: str):
                 for i in range(len(realbox)):
                     try:
                         bname = realname[i]
-                        # bname = '136'
-                        bname = f"1_{realname[i][0][:4]}"
+
                         # for b in realbox[i]:
                         b = realbox[i]
                         x1 = int(b[0] * w)
@@ -454,20 +448,15 @@ async def server(websocket, path: str):
                         jsondump = [
                             {"id": bname, "x": int((x1 + x2) / 2), "y": int((y1 + y2) / 2), "time": 1606874052384}]
                         await conn.send(json.dumps(jsondump))
-                        await asyncio.sleep(.8)
-
-                        # enhance movment
-                        for i in range(int((x1 + x2) / 2), int((x1 + x2) / 2) + np.random.randint(50), 5):
+                        await asyncio.sleep(.4)
+                        for i in range(int((x1 + x2) / 2), int((x1 + x2) / 2) + 50, 5):
                             try:
                                 await conn.send(
-                                    json.dumps([{"id": bname, "x": i,
-                                                 "y": int((y1 + y2) / 2 + np.random.randint(-10, 10)),
-                                                 "time": 1606874052384}]))
-                                await asyncio.sleep(.8)
+                                    json.dumps([{"id": bname, "x": i, "y": int((y1 + y2) / 2), "time": 1606874052384}]))
+                                await asyncio.sleep(.4)
                                 # y += 5
                             except RuntimeError:
                                 pass
-
                                 # print('Set changed size during iteration')
                                 # await conn.recv()
                                 # connected.clear()
@@ -533,17 +522,11 @@ def statis_to_ws(detsq: Queue):
         'boxes': np.asarray([x['box'] for x in d], dtype=np.float32).reshape(-1, 4),
         'timestamp': time.time()
     }
-    all_people_features = np.zeros((1, 128), dtype=np.float32)
-    all_people_features = np.vstack((all_people_features, last_person_dict['features']))
-    all_people_features = np.unique(all_people_features, axis=0)
     nowhour = datetime.datetime.now().hour
-    nowminites = datetime.datetime.now().minute
     if nowhour == 0:
         h0, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, \
         h13, h14, h15, h16, h17, h18, h19, h20, h21, h22, h23 = \
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-    if nowminites == 0:
-        realHeat.clear()
     while 1:
         f, b, d = detsq.get()
         # print('*' * 99)
@@ -561,34 +544,16 @@ def statis_to_ws(detsq: Queue):
             # print(type(f),len(f))
             # print(last_person_dict)
             # os._exit(0)
-
-            # if current people is found in history all features
-            # all peple found start
             currentfeature = np.asarray(f[i], dtype=np.float32).reshape(-1, 128)
-            distince_from_allpeople = cosine_distance(currentfeature, all_people_features).reshape(-1)
-            argmax_all = np.argmax(distince_from_allpeople)
-            # print('-' * 88)
-            # print('people found from history all list....', all_people_features.shape, distince_from_allpeople)
-            # print('-' * 88)
-            if distince_from_allpeople[argmax_all] > THRES_ALL:
-                # print('+' * 88)
-                # print('people found from history all list....', all_people_features.shape, distince_from_allpeople)
-                # print('+' * 88)
-                continue
-            all_people_features = np.vstack((all_people_features, currentfeature))
-            all_people_features = np.unique(all_people_features, axis=0)
-            # all peple found end
-            ##################
-
             cdistance = cosine_distance_fine(currentfeature,
-                                             last_person_dict['features']).reshape(-1)
-            # cdistance (len(last_person_number),)
+                                             last_person_dict['features']).reshape(
+                -1)  # cdistance (len(last_person_number),)
             # argmin = np.argmin(np.abs(cdistance))
             # argmin = np.argmin(cdistance)
             argmax = np.argmax(cdistance)
-            # print('*' * 88)
-            # print(cdistance, argmax)
-            # print('*' * 88)
+            print('*' * 88)
+            print(cdistance, argmax)
+            print('*' * 88)
             try:
                 if cdistance[argmax] > THRES:
                     found.append(argmax)
@@ -622,7 +587,7 @@ def statis_to_ws(detsq: Queue):
         realTrack['id'].extend(namesnew.tolist())
         realTrack['point'] = boxesfound.tolist()
         realTrack['point'].extend(boxesnew.tolist())
-        # print(realTrack)
+        print(realTrack)
         maskgone = np.ones(len(last_person_dict['features']), dtype=bool)
         maskgone[found] = False
         resultgone = last_person_dict['features'][maskgone, ...]
@@ -751,11 +716,7 @@ if __name__ == "__main__":
             while cap.isOpened() & f:
                 f, i = cap.read()
                 # resized = cv2.resize(i, (w, h), interpolation=cv2.INTER_CUBIC)
-                try:
-                    if i.shape[2] == 3:
-                        input_frame_q.put(i)
-                except:
-                    continue
+                input_frame_q.put(i)
         except:
             pass
 

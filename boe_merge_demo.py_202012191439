@@ -35,7 +35,6 @@ w = 640
 h = 480
 c = 3
 THRES = .15
-THRES_ALL = .7
 HOST = "0.0.0.0"
 connected = set()
 total_count = 0
@@ -257,7 +256,7 @@ def p_putframe_python_to_pipe(q: Queue, outq: Queue):
         while 1:
             try:
                 i = q.get()
-                ret2, frame2 = cv2.idmencode('.png', i)
+                ret2, frame2 = cv2.idmencode('.jpg', i)
                 outfifo.write(frame2)
                 # outfifo.write(i)
             except:
@@ -271,7 +270,7 @@ def p_putframe_python_to_pipe(q: Queue, outq: Queue):
             img = realq.get()
             plot_multi_images([img], detect_result)
 
-            ret2, frame3 = cv2.imencode('.png', img)
+            ret2, frame3 = cv2.imencode('.jpg', img)
             outfifo.write(frame3)
             # outfifo.write(img)
 
@@ -533,9 +532,6 @@ def statis_to_ws(detsq: Queue):
         'boxes': np.asarray([x['box'] for x in d], dtype=np.float32).reshape(-1, 4),
         'timestamp': time.time()
     }
-    all_people_features = np.zeros((1, 128), dtype=np.float32)
-    all_people_features = np.vstack((all_people_features, last_person_dict['features']))
-    all_people_features = np.unique(all_people_features, axis=0)
     nowhour = datetime.datetime.now().hour
     nowminites = datetime.datetime.now().minute
     if nowhour == 0:
@@ -561,34 +557,16 @@ def statis_to_ws(detsq: Queue):
             # print(type(f),len(f))
             # print(last_person_dict)
             # os._exit(0)
-
-            # if current people is found in history all features
-            # all peple found start
             currentfeature = np.asarray(f[i], dtype=np.float32).reshape(-1, 128)
-            distince_from_allpeople = cosine_distance(currentfeature, all_people_features).reshape(-1)
-            argmax_all = np.argmax(distince_from_allpeople)
-            # print('-' * 88)
-            # print('people found from history all list....', all_people_features.shape, distince_from_allpeople)
-            # print('-' * 88)
-            if distince_from_allpeople[argmax_all] > THRES_ALL:
-                # print('+' * 88)
-                # print('people found from history all list....', all_people_features.shape, distince_from_allpeople)
-                # print('+' * 88)
-                continue
-            all_people_features = np.vstack((all_people_features, currentfeature))
-            all_people_features = np.unique(all_people_features, axis=0)
-            # all peple found end
-            ##################
-
             cdistance = cosine_distance_fine(currentfeature,
-                                             last_person_dict['features']).reshape(-1)
-            # cdistance (len(last_person_number),)
+                                             last_person_dict['features']).reshape(
+                -1)  # cdistance (len(last_person_number),)
             # argmin = np.argmin(np.abs(cdistance))
             # argmin = np.argmin(cdistance)
             argmax = np.argmax(cdistance)
-            # print('*' * 88)
-            # print(cdistance, argmax)
-            # print('*' * 88)
+            print('*' * 88)
+            print(cdistance, argmax)
+            print('*' * 88)
             try:
                 if cdistance[argmax] > THRES:
                     found.append(argmax)
@@ -622,7 +600,7 @@ def statis_to_ws(detsq: Queue):
         realTrack['id'].extend(namesnew.tolist())
         realTrack['point'] = boxesfound.tolist()
         realTrack['point'].extend(boxesnew.tolist())
-        # print(realTrack)
+        print(realTrack)
         maskgone = np.ones(len(last_person_dict['features']), dtype=bool)
         maskgone[found] = False
         resultgone = last_person_dict['features'][maskgone, ...]
