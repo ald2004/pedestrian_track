@@ -711,12 +711,12 @@ def statis_to_ws(detsq: Queue):
         elif nowhour == 23:
             h23 += len(resultgone)
 
-        try:
-            while 1:
-                detsq.get_nowait()
-        except:
-            pass
-        time.sleep(1)
+        # try:
+        #     while 1:
+        #         detsq.get_nowait()
+        # except:
+        #     pass
+        # time.sleep(1)
 
 
 if __name__ == "__main__":

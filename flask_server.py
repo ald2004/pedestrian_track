@@ -5,8 +5,8 @@ from flask import Flask, request, Response
 
 app = Flask(__name__)
 HOST = "0.0.0.0"
-W = 640
-H = 480
+W = 640 + 100
+H = 480 +100
 # W = 1920
 # H = 1080
 # Testing URL
