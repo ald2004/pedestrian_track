@@ -39,17 +39,17 @@ class FeatureExtractionPintAPIAlgorithm():
         feature = []
         # start = time.time()
         for img in imgs:
-            # f = []
+            f = []
             for boxes in boxess:
                 for box in boxes:
                     img_roi = self.extract_image_patch(img, box, (self.config['width'], self.config['height']))
                     im = img_roi[np.newaxis, :]
                     result = self.sess.predict(im)
                     ret = self._post_process(result)
-                    # f.append(ret[0])
-                    feature.append(ret[0])
+                    f.append(ret[0])
+                    # feature.append(ret[0])
                     # print(ret[0].shape)
-            # feature.append(f)
+            feature.append(f)
             # feature.extend(f)
 
         # end = time.time()

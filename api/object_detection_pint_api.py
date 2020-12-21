@@ -16,7 +16,7 @@ class ObjectDectionPintAPIAlgorithm():
 
     def __init__(self, config):
         self.config = config
-        with open(os.path.normpath('./config/coco_names.json'), "r") as f:
+        with open(os.path.normpath('/opt/pedestrian_track/config/coco_names.json'), "r") as f:
             self.class_names = json.load(f)
         self.anno_id = 0
 

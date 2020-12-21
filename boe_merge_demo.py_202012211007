@@ -5,17 +5,13 @@ import time
 import uuid
 import numpy as np
 from itertools import cycle
+
 import sqlite3
 from multiprocessing import Process
-# from api.CameraApi import (
-#     get_ins,
-#     start
-# )
-# from api.cppencoder import (
-#     cur,
-#     inData
-# )
-import copy
+from api.CameraApi import (
+    get_ins,
+    start
+)
 import multiprocessing
 import threading
 from multiprocessing import Process, Queue
@@ -25,7 +21,6 @@ import fire
 from api.yolo_reid_pint_api import YoloReidPintAPIAlgorithm as pint_api
 from api.yolo_reid_pint_api import Config
 from api.yolo_reid_pint_api import cosine_distance
-from sklearn.metrics.pairwise import cosine_similarity
 from api.plot_utils import plot_multi_images
 from api.timer import Timer
 import sqlite3
@@ -33,14 +28,6 @@ import asyncio
 import websockets
 import datetime
 import glob
-import ctypes
-from ctypes import *
-import threading
-import numpy as np
-import datetime
-import os
-import cv2
-import copy
 
 IMAGE_PIPE = '/dev/shm/img_q'
 RTMP_PIPE = '/dev/shm/rtmp_q'
@@ -209,29 +196,6 @@ class demo_classer(object):
             # else:
             #     print('data is none')
 
-    def pint_main_detection(self, imq, boxq):
-        while 1:
-            try:
-                img: np.ndarray = imq.get()
-                boxes, detect_result = self.model.run_detect([img])
-            except:
-                time.sleep(.2)
-                continue
-            try:
-                if len(boxes):
-                    boxq.put(detect_result)
-            except:
-                print(f"detstatisq err {boxes, detect_result}")
-            # xor += 1
-            # if not (xor - 3):
-            #     # self.result_to_db(features, boxes, detect_result)
-            #     xor = 0
-            # plot_multi_images([img], detect_result)
-
-            # ret2, frame2 = cv2.imencode('.png', img)
-            # outq.put(img)
-            # outq.put(detect_result)
-
 
 def get_camera_frame(_):
     # print('=' * 60)
@@ -247,11 +211,6 @@ def get_camera_frame(_):
 def pintmain(q, outq, detstatisq):
     xx = demo_classer()
     xx.pint_main(q, outq, detstatisq)
-
-
-def pintmain_detection(imq, boxq):
-    xx = demo_classer()
-    xx.pint_main_detection(imq, boxq)
 
 
 def p_getframe_python_to_queue(q: Queue):
@@ -289,110 +248,47 @@ def p_getframe_python_to_queue(q: Queue):
     #                 pass
 
 
-def put_bgr_encode_put_to_ffmpeg(frame, cur, inData):
-    # print('qqqqqqqqqqqqqqq')
-    # print(frame)
-    # print(frame.shape)
-    yuv = cv2.cvtColor(frame, cv2.COLOR_BGR2YUV_I420)
-    # print(yuv.shape)
-    # print('rrrrrrrrrrrrrrrr')
-    frame_for_encoder = copy.deepcopy(yuv)
-    # print(frame_for_encoder.shape)
-    # print(frame_for_encoder)
-    # print('wwwwwwwwwwwwww')
-    inData.buf = (ctypes.c_ubyte * 460800).from_buffer_copy(frame_for_encoder)
-    # print(inData.buf)
-    # print('eeeeeeeeeeeeeeeee')
-    cur.inputBgr(inData)
-    # print('etttttttttttttttttttttt')
-    img = cur.readH264()
-    # print(img.len)
-    # print('yyyyyyyyyyyyyyyy')
-    ffmpegprocess.stdin.write(bytes(img.buf1[:img.len]))
-    # print('zzzzzzzzzzzz')
-    # try:
-    #     ffmpegprocess.stdin.write(bytes(img.buf1[:img.len]))
-    # except:
-    #     pass
+def p_putframe_python_to_pipe(q: Queue, outq: Queue):
+    while not os.path.exists(RTMP_PIPE):
+        print(f'wait for frame pipe : {RTMP_PIPE}')
+        time.sleep(1)
 
-
-def p_putframe_python_to_pipe(q: Queue, boxq: Queue):
-    h264hearder = None
-    with open('/opt/pedestrian_track/api/h264_header_len_158.h264', 'rb') as fid:
-        h264hearder = fid.read(158)
-    ffmpegprocess.stdin.write(h264hearder)
-    # while not os.path.exists(RTMP_PIPE):
-    #     print(f'wait for frame pipe : {RTMP_PIPE}')
-    #     time.sleep(1)
-    cur = CDLL(os.path.join(os.environ.get('ESW_PATH', './'), "libEncode.so"), RTLD_GLOBAL)
-
-    class dataInPack(Structure):
-        _fields_ = [("buf", c_ubyte * 460800)]  # buf1
-
-    class dataOutPack(Structure):
-        _fields_ = [("len", c_int),  # width
-                    ("buf1", c_ubyte * 2000000)]  # buf1
-
-    cur.readH264.restype = (dataOutPack)
-    inData = dataInPack()
-    cur.create_encoder(640, 480, 25)
-
-    # i = q.get()
-    # yuv = cv2.cvtColor(i, cv2.COLOR_BGR2YUV_I420)
-    # frame_for_encoder = copy.deepcopy(yuv)
-    # inData.buf = (ctypes.c_ubyte * 460800).from_buffer_copy(frame_for_encoder)
-    # cur.inputBgr(inData)
-    # img = cur.readH264()
-    # print(img.len)
-    # print('yyyyyyyyyyyyyyyy')
-    # # ffmpegprocess.stdin.write(bytes(img.buf1[:img.len]))
-    # print('zzzzzzzzzzzz')
-    def put_real_stream(outfifo, outq, q, cur, inData):
+    def put_real_stream(outfifo, q):
         while 1:
             try:
                 i = q.get()
-                # ret2, frame2 = cv2.imencode('.png', i)
-                # outfifo.write(frame2)
-
-                put_bgr_encode_put_to_ffmpeg(i, cur, inData)
+                ret2, frame2 = cv2.imencode('.png', i)
+                outfifo.write(frame2)
+                # outfifo.write(i)
             except:
                 time.sleep(.5)
                 print(f'none q img')
                 # raise
 
-    def put_det_stream(outfifo, outq: multiprocessing.Queue, realq, cur, inData):
-        detect_result = outq.get()
+    def put_det_stream(outfifo, outq, realq):
         while 1:
             # outi = outq.get()
+            detect_result = outq.get()
+            img = realq.get()
             try:
-                current_detect_result = outq.get_nowait()
-                detect_result = current_detect_result
-            except:
-                current_detect_result = detect_result
-            try:
-                img = realq.get()
-                if img.shape[2] == 3:
-                    # plot_multi_images([img], detect_result)
-                    plot_multi_images([img], current_detect_result,line_thickness=2)
-                    # ret2, frame3 = cv2.imencode('.png', img)
-                    # outfifo.write(frame3)
-                    put_bgr_encode_put_to_ffmpeg(img, cur, inData)
+                if img.shape[2]==3:
+                    plot_multi_images([img], detect_result)
+
+                    ret2, frame3 = cv2.imencode('.png', img)
+                    outfifo.write(frame3)
             except:
                 pass
             # outfifo.write(img)
 
-    # with open(RTMP_PIPE, 'wb') as outfifo:
-    # t1 = threading.Thread(target=put_real_stream, args=(None, outq, q, cur, inData))
-    t2 = threading.Thread(target=put_det_stream, args=(None, boxq, q, cur, inData))
-    t1 = threading.Thread(target=put_det_stream, args=(None, boxq, q, cur, inData))
-    # t1 = multiprocessing.Process(target=put_real_stream, args=(outfifo, q))
-    # t2 = multiprocessing.Process(target=put_det_stream, args=(outfifo, outq, q))
-
-    # print('xxxxxxxxxxxxxxx')
-    t1.start()
-    # t2.start()
-    while 1:
-        time.sleep(99)
+    with open(RTMP_PIPE, 'wb') as outfifo:
+        t1 = threading.Thread(target=put_real_stream, args=(outfifo, q))
+        t2 = threading.Thread(target=put_det_stream, args=(outfifo, outq, q))
+        # t1 = multiprocessing.Process(target=put_real_stream, args=(outfifo, q))
+        # t2 = multiprocessing.Process(target=put_det_stream, args=(outfifo, outq, q))
+        t1.start()
+        t2.start()
+        while 1:
+            time.sleep(99)
         # while 1:
         #     outi = outq.get()
         #     ret2, frame3 = cv2.imencode('.png', outi)
@@ -413,8 +309,6 @@ def p_putframe_python_to_pipe(q: Queue, boxq: Queue):
 
 
 async def server(websocket, path: str):
-    if len(connected) > 50:
-        return
     global total_count, q0_count, q1_count, q2_count, q3_count, \
         q4_count, q5_count, h0, h1, h2, h3, h4, h5, \
         h6, h7, h8, h9, h10, h11, h12, h13, h14, h15, \
@@ -435,9 +329,9 @@ async def server(websocket, path: str):
     try:
         # async for message in websocket:
         # for conn in connected:
-        # print(f'pth is :{path}')
+        print(f'pth is :{path}')
         if path.endswith('reportDetail'):
-            # print(path, '111111111111')
+            print(path, '111111111111')
             # xx = {
             #     "code": 200,
             #     "data": [
@@ -460,7 +354,7 @@ async def server(websocket, path: str):
                                   "45-60": f"{q3_count}"}}
             await websocket.send(json.dumps(xx))
         elif path.endswith('reportByHour'):
-            # print(path, '22222222222222')
+            print(path, '22222222222222')
             # xx = {
             #     "code": 200,
             #     "data": {
@@ -501,7 +395,7 @@ async def server(websocket, path: str):
                   "20": h20, "21": h21, "22": h22, "23": h23}
             await websocket.send(json.dumps(xx))
         elif path.endswith('realHeat'):
-            # print(path, '333333333333')
+            print(path, '333333333333')
             xx = []
             # realHeat = distinctlist(realHeat)
             for box in realHeat:
@@ -519,7 +413,7 @@ async def server(websocket, path: str):
         else:
             # path.endswith('realTrack'):
             tstamp = time.time()
-            # print(path, '4444444444')
+            print(path, '4444444444')
             xx = {
                 "code": 200,
                 "data": [
@@ -541,22 +435,22 @@ async def server(websocket, path: str):
             }
             xx = [{"id": "1_136", "x": 235, "y": 315, "time": 1606874052384},
                   {"id": "1_136", "x": 280, "y": 390, "time": 1606874052384}]
-            while 1:
-                for conn in connected:
-                    # y = 315
-                    # while 1:
-                    realbox = realTrack['point']
-                    realname = realTrack['id']
-                    # with open('/dev/shm/realTrack', 'a') as fid:
-                    #     fid.write(json.dumps(realTrack))
-                    # print('*' * 99)
-                    # print(realTrack)
-                    # print('*' * 99)
-                    jsondumpbatch = []
-                    for i in range(len(realbox)):
+            # while 1:
+            for conn in connected:
+                # y = 315
+                # while 1:
+                realbox = realTrack['point']
+                realname = realTrack['id']
+                # with open('/dev/shm/realTrack', 'a') as fid:
+                #     fid.write(json.dumps(realTrack))
+                # print('*' * 99)
+                # print(realTrack)
+                # print('*' * 99)
+                for i in range(len(realbox)):
+                    try:
                         bname = realname[i]
                         # bname = '1_136'
-                        bname = f"1_{realname[i][0][:2]}"
+                        bname = f"1_{realname[i][0][:4]}"
                         # for b in realbox[i]:
                         b = realbox[i]
                         x1 = int(b[0] * w)
@@ -564,50 +458,46 @@ async def server(websocket, path: str):
                         y1 = int(b[1] * h)
                         y2 = int(b[3] * h)
                         jsondump = [
-                            {"id": bname, "x": int((x1 + x2) / 2), "y": int((y1 + y2) / 2), "time": time.time()}]
-                        # await conn.send(json.dumps(jsondump))
-                        # await asyncio.sleep(.8)
-                        jsondumpbatch.extend(jsondump)
+                            {"id": bname, "x": int((x1 + x2) / 2), "y": int((y1 + y2) / 2), "time": 1606874052384}]
+                        await conn.send(json.dumps(jsondump))
+                        await asyncio.sleep(.8)
 
                         # enhance movment
-                        # for i in range(int((x1 + x2) / 2), int((x1 + x2) / 2) + np.random.randint(20), 5):
-                        #     jsondump_enhance = [{"id": bname, "x": i, "y": int((y1 + y2) / 2 + np.random.randint(-10, 10)),
-                        #                          "time": time.time()}]
-                        # await conn.send(json.dumps())
-                        # await asyncio.sleep(.8)
-                        # y += 5
-                        # jsondumpbatch.extend(jsondump_enhance)
+                        for i in range(int((x1 + x2) / 2), int((x1 + x2) / 2) + np.random.randint(50), 5):
+                            try:
+                                await conn.send(
+                                    json.dumps([{"id": bname, "x": i,
+                                                 "y": int((y1 + y2) / 2 + np.random.randint(-10, 10)),
+                                                 "time": 1606874052384}]))
+                                await asyncio.sleep(.8)
+                                # y += 5
+                            except RuntimeError:
+                                pass
 
-                        # print('Set changed size during iteration')
-                        # await conn.recv()
-                        # connected.clear()
+                                # print('Set changed size during iteration')
+                                # await conn.recv()
+                                # connected.clear()
                         # realTrack['point'].remove(realTrack['point'][i])
                         # realTrack['id'].remove(realTrack['id'][i])
-                    try:
-                        await conn.send(json.dumps(jsondumpbatch))
-                        # await asyncio.sleep(.6)
                     except:
                         # print('Set changed size during iteration')
                         # print(realbox[i])
                         connected.remove(conn)
                         # raise
-                        pass
-                await asyncio.sleep(.6)
-                if not len(connected):
-                    break
-                # await conn.recv()
+                        continue
+                        # await conn.recv()
 
-                # await asyncio.sleep(1.)
+                    # await asyncio.sleep(1.)
 
-                # for i in range(800, 235, -5):
-                #     try:
-                #         await conn.send(json.dumps([{"id": "1_136", "x": i, "y": y, "time": 1606874052384}]))
-                #         await asyncio.sleep(1)
-                #         y -= 5
-                #     except RuntimeError:
-                #         print('Set changed size during iteration')
-                #         await conn.recv()
-                #         connected.clear()
+                    # for i in range(800, 235, -5):
+                    #     try:
+                    #         await conn.send(json.dumps([{"id": "1_136", "x": i, "y": y, "time": 1606874052384}]))
+                    #         await asyncio.sleep(1)
+                    #         y -= 5
+                    #     except RuntimeError:
+                    #         print('Set changed size during iteration')
+                    #         await conn.recv()
+                    #         connected.clear()
             # print(await conn.recv())
             # async for xx in websocket:
             #     print(xx)
@@ -632,8 +522,8 @@ def start_wsserver():
     asyncio.get_event_loop().run_forever()
 
 
-# def cosine_distance_fine(a, b):
-#     return a @ b.T
+def cosine_distance_fine(a, b):
+    return a @ b.T
 
 
 def statis_to_ws(detsq: Queue):
@@ -701,10 +591,8 @@ def statis_to_ws(detsq: Queue):
             # all peple found end
             ##################
 
-            # cdistance = cosine_distance_fine(currentfeature,
-            #                                  last_person_dict['features']).reshape(-1)
-
-            cdistance = cosine_similarity(currentfeature, last_person_dict['features']).reshape(-1)
+            cdistance = cosine_distance_fine(currentfeature,
+                                             last_person_dict['features']).reshape(-1)
             # cdistance (len(last_person_number),)
             # argmin = np.argmin(np.abs(cdistance))
             # argmin = np.argmin(cdistance)
@@ -721,7 +609,7 @@ def statis_to_ws(detsq: Queue):
                 print('*' * 88)
                 print(cdistance, argmax, last_person_dict['features'], currentfeature)
                 print('*' * 88)
-                pass
+                raise
             newones.append(i)
 
         maskfound = np.zeros(len(last_person_dict['features']), dtype=bool)
@@ -842,48 +730,33 @@ if __name__ == "__main__":
     #                 )
     #         .run_async(pipe_stdin=True))
 
-    ffmpegprocess = (
-        ffmpeg
-            .input('pipe:', r='25')
-            # .filter('scale', width='570', height='320')
-            .output('rtmp://192.168.8.121/live/bbb', vcodec='copy', format='flv', r='25'
-                    # ,s='570x320'
-                    )
-            .run_async(pipe_stdin=True))
-
     input_frame_q = Queue(maxsize=2000)
-    # outq = Queue(maxsize=2000)
+    outq = Queue(maxsize=2000)
     detstatisq = Queue()
-    boxq = Queue()
+
     #############
     # use c so for read frame
     # gcf = Process(target=get_camera_frame, args=(None,))
     # gcf.start()
     #############
 
-    pm_detect_0 = Process(target=pintmain_detection, args=(input_frame_q, boxq))
-    pm_detect_0.start()
-    pm_detect_1 = Process(target=pintmain_detection, args=(input_frame_q, boxq))
-    pm_detect_1.start()
-    pm = Process(target=pintmain, args=(input_frame_q, boxq, detstatisq))
+    pm = Process(target=pintmain, args=(input_frame_q, outq, detstatisq))
     pm.start()
-    # print('aaaaaaaaaaaaaaa')
+
     # gci = Process(target=gen_camera_frame,args=(None,))
     # gcq = Process(target=p_getframe_python_to_queue, args=(q,))
 
-    # for cut det and fea
-    # gpq = Process(target=p_putframe_python_to_pipe, args=(input_frame_q, outq))
-    gpq = Process(target=p_putframe_python_to_pipe, args=(input_frame_q, boxq))
+    gpq = Process(target=p_putframe_python_to_pipe, args=(input_frame_q, outq))
 
-    # print('bbbbbbbbbbbbbbb')
     # gcq.start()
     gpq.start()
-    # print('cccccccccccc')
+
     statisprocess = Process(target=statis_to_ws, args=(detstatisq,))
     statisprocess.start()
     # fire.Fire(demo_classer)
     # gcf.join()
     # pm.join()
+
     # for read video from local ./videos/*.avi
     for video in cycle(glob.glob("./videos/*.avi")):
         cap = cv2.VideoCapture(video)
@@ -895,12 +768,11 @@ if __name__ == "__main__":
                 try:
                     # if i.shape[2] == 3:
                     input_frame_q.put(i)
-                    # print(i.shape) #(480, 640, 3)
-                    # print(input_frame_q.qsize())
                 except:
-                    pass
+                    raise
         except:
-            pass
+            raise
+
 '''
  ffmpeg -hwaccel_device /dev/dri/card0 -r 9 -i /dev/shm/rtmp_q -an -s 320*240  -f flv -r 9 rtmp://192.168.8.121/live/bbb -c:v h264_vaapi
   ffmpeg -hwaccel_device /dev/dri/card0 -r 9 -i /dev/shm/rtmp_q -an -s 320*240  -f flv -r 9 rtmp://192.168.8.121/live/bbb -c:v hevc_vaapi

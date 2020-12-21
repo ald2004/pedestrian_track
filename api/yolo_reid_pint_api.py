@@ -42,6 +42,15 @@ class YoloReidPintAPIAlgorithm():
         boxes = self.convert_boxes(_images, det_result[0])
         features = self.feature_extracter.run(images, boxes)
         return features, boxes, det_result[0]
+
+
+    def run_detect(self, images):
+        _images = copy.deepcopy(images)
+        det_result = self.detector.run(images)
+        # boxes = [[[292, 152, 63, 177], [453, 208, 27, 67]], ]
+        boxes = self.convert_boxes(_images, det_result[0])
+        # features = self.feature_extracter.run(images, boxes)
+        return boxes, det_result[0]
         # return None, None, det_result[0]
 
     def convert_boxes(self, images, detections):

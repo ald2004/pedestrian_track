@@ -373,7 +373,7 @@ def p_putframe_python_to_pipe(q: Queue, boxq: Queue):
                 img = realq.get()
                 if img.shape[2] == 3:
                     # plot_multi_images([img], detect_result)
-                    plot_multi_images([img], current_detect_result,line_thickness=2)
+                    plot_multi_images([img], current_detect_result)
                     # ret2, frame3 = cv2.imencode('.png', img)
                     # outfifo.write(frame3)
                     put_bgr_encode_put_to_ffmpeg(img, cur, inData)
@@ -384,13 +384,12 @@ def p_putframe_python_to_pipe(q: Queue, boxq: Queue):
     # with open(RTMP_PIPE, 'wb') as outfifo:
     # t1 = threading.Thread(target=put_real_stream, args=(None, outq, q, cur, inData))
     t2 = threading.Thread(target=put_det_stream, args=(None, boxq, q, cur, inData))
-    t1 = threading.Thread(target=put_det_stream, args=(None, boxq, q, cur, inData))
     # t1 = multiprocessing.Process(target=put_real_stream, args=(outfifo, q))
     # t2 = multiprocessing.Process(target=put_det_stream, args=(outfifo, outq, q))
 
     # print('xxxxxxxxxxxxxxx')
-    t1.start()
-    # t2.start()
+    # t1.start()
+    t2.start()
     while 1:
         time.sleep(99)
         # while 1:
@@ -845,14 +844,11 @@ if __name__ == "__main__":
     ffmpegprocess = (
         ffmpeg
             .input('pipe:', r='25')
-            # .filter('scale', width='570', height='320')
-            .output('rtmp://192.168.8.121/live/bbb', vcodec='copy', format='flv', r='25'
-                    # ,s='570x320'
-                    )
+            .output('rtmp://192.168.8.121/live/bbb', vcodec='copy', format='flv', r='25')
             .run_async(pipe_stdin=True))
 
     input_frame_q = Queue(maxsize=2000)
-    # outq = Queue(maxsize=2000)
+    outq = Queue(maxsize=2000)
     detstatisq = Queue()
     boxq = Queue()
     #############
@@ -861,11 +857,9 @@ if __name__ == "__main__":
     # gcf.start()
     #############
 
-    pm_detect_0 = Process(target=pintmain_detection, args=(input_frame_q, boxq))
-    pm_detect_0.start()
-    pm_detect_1 = Process(target=pintmain_detection, args=(input_frame_q, boxq))
-    pm_detect_1.start()
-    pm = Process(target=pintmain, args=(input_frame_q, boxq, detstatisq))
+    pm_detect = Process(target=pintmain_detection, args=(input_frame_q, boxq))
+    pm_detect.start()
+    pm = Process(target=pintmain, args=(input_frame_q, outq, detstatisq))
     pm.start()
     # print('aaaaaaaaaaaaaaa')
     # gci = Process(target=gen_camera_frame,args=(None,))

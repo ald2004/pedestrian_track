@@ -95,7 +95,8 @@ def random_color(rgb=False, maximum=255):
     Returns:
         ndarray: a vector of 3 numbers
     """
-    idx = np.random.randint(0, len(_COLORS))
+    # idx = np.random.randint(0, len(_COLORS))
+    idx = 9
     ret = _COLORS[idx] * maximum
 
     if not rgb:
@@ -106,7 +107,7 @@ def random_color(rgb=False, maximum=255):
 
 
 def gen_random_color(number=80):
-    color_table = np.random.randint(0, 255, size=(number, 3))  
+    color_table = np.random.randint(0, 255, size=(number, 3))
     return color_table
 
 
@@ -140,7 +141,7 @@ def plot_one_img(img, coord, label=None, color=None, line_thickness=None):
         cv2.putText(img, label, (c1[0], c1[1] - 2), 0, float(tl) / 3, [0, 0, 0], thickness=tf, lineType=cv2.LINE_AA)
 
 
-def plot_multi_images(imgs, ret):
+def plot_multi_images(imgs, ret,line_thickness=None):
     for i, element in enumerate(ret):
         for j, dict_ in enumerate(element):
             # x1 = dict_['box'][0] * imgs[i].shape[0]
@@ -155,8 +156,10 @@ def plot_multi_images(imgs, ret):
             # print([x1, y1, x2, y2])
 
             plot_one_img(imgs[i], [x1, y1, x2, y2],
-                         label=dict_['class_name'] + ', {:.2f}%'.format(dict_['score'] * 100),
-                         color=random_color())
+                         # label=dict_['class_name'] + ', {:.2f}%'.format(dict_['score'] * 100),
+                         label='',
+                         color=random_color(),
+                         line_thickness=line_thickness)
 
 
 def plot_multi_images_v1(imgs, ret, number=80):
@@ -168,7 +171,7 @@ def plot_multi_images_v1(imgs, ret, number=80):
             y1 = dict_['box'][1] * imgs[i].shape[0]
             y2 = dict_['box'][3] * imgs[i].shape[0]
             color = color_table[dict_['class_id']]
-            plot_one_img(imgs[i], 
+            plot_one_img(imgs[i],
                          [x1, y1, x2, y2],
                          label=dict_['class_name'] + ', {:.2f}%'.format(dict_['score'] * 100),
                          color=color)
