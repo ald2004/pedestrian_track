@@ -318,13 +318,14 @@ def put_bgr_encode_put_to_ffmpeg(frame, cur, inData):
 
 def p_putframe_python_to_pipe(q: Queue, boxq: Queue):
     h264hearder = None
-    with open('/opt/pedestrian_track/api/h264_header_len_158.h264', 'rb') as fid:
-        h264hearder = fid.read(158)
+    with open('/opt/pedestrian_track/api/output_short_header_25fps.h264', 'rb') as fid:
+        # h264hearder = fid.read(383)
+        h264hearder = fid.read()
     ffmpegprocess.stdin.write(h264hearder)
     # while not os.path.exists(RTMP_PIPE):
     #     print(f'wait for frame pipe : {RTMP_PIPE}')
     #     time.sleep(1)
-    cur = CDLL(os.path.join(os.environ.get('ESW_PATH', './'), "libEncode.so"), RTLD_GLOBAL)
+    cur = CDLL(os.path.join(os.environ.get('ESW_PATH', './'), "libEncode_no_std_print.so"), RTLD_GLOBAL)
 
     class dataInPack(Structure):
         _fields_ = [("buf", c_ubyte * 460800)]  # buf1
@@ -346,14 +347,14 @@ def p_putframe_python_to_pipe(q: Queue, boxq: Queue):
     # print(img.len)
     # print('yyyyyyyyyyyyyyyy')
     # # ffmpegprocess.stdin.write(bytes(img.buf1[:img.len]))
-    # print('zzzzzzzzzzzz')
+
     def put_real_stream(outfifo, outq, q, cur, inData):
         while 1:
             try:
                 i = q.get()
                 # ret2, frame2 = cv2.imencode('.png', i)
                 # outfifo.write(frame2)
-
+                # print('zzzzzzzzzzzz')
                 put_bgr_encode_put_to_ffmpeg(i, cur, inData)
             except:
                 time.sleep(.5)
@@ -362,20 +363,26 @@ def p_putframe_python_to_pipe(q: Queue, boxq: Queue):
 
     def put_det_stream(outfifo, outq: multiprocessing.Queue, realq, cur, inData):
         detect_result = outq.get()
+        # print('aaaaaaaa')
         while 1:
             # outi = outq.get()
+            # print('ddddddddddd')
             try:
                 current_detect_result = outq.get_nowait()
                 detect_result = current_detect_result
             except:
+                # print('ssssssssssss')
                 current_detect_result = detect_result
             try:
+                # print('gggggggggggggg')
                 img = realq.get()
+                # print('ssssgggggggggggggggg')
                 if img.shape[2] == 3:
                     # plot_multi_images([img], detect_result)
-                    plot_multi_images([img], current_detect_result,line_thickness=2)
+                    plot_multi_images([img], current_detect_result, line_thickness=2)
                     # ret2, frame3 = cv2.imencode('.png', img)
                     # outfifo.write(frame3)
+                    # print('hhhhhhhhhhhhh')
                     put_bgr_encode_put_to_ffmpeg(img, cur, inData)
             except:
                 pass
@@ -383,7 +390,7 @@ def p_putframe_python_to_pipe(q: Queue, boxq: Queue):
 
     # with open(RTMP_PIPE, 'wb') as outfifo:
     # t1 = threading.Thread(target=put_real_stream, args=(None, outq, q, cur, inData))
-    t2 = threading.Thread(target=put_det_stream, args=(None, boxq, q, cur, inData))
+    # t2 = threading.Thread(target=put_det_stream, args=(None, boxq, q, cur, inData))
     t1 = threading.Thread(target=put_det_stream, args=(None, boxq, q, cur, inData))
     # t1 = multiprocessing.Process(target=put_real_stream, args=(outfifo, q))
     # t2 = multiprocessing.Process(target=put_det_stream, args=(outfifo, outq, q))
@@ -844,14 +851,15 @@ if __name__ == "__main__":
 
     ffmpegprocess = (
         ffmpeg
-            .input('pipe:', r='25')
+            .input('pipe:')
             # .filter('scale', width='570', height='320')
             .output('rtmp://192.168.8.121/live/bbb', vcodec='copy', format='flv', r='25'
                     # ,s='570x320'
                     )
             .run_async(pipe_stdin=True))
 
-    input_frame_q = Queue(maxsize=2000)
+    input_frame_q = Queue(maxsize=200)
+    # input_frame_q = Queue()
     # outq = Queue(maxsize=2000)
     detstatisq = Queue()
     boxq = Queue()
@@ -863,8 +871,8 @@ if __name__ == "__main__":
 
     pm_detect_0 = Process(target=pintmain_detection, args=(input_frame_q, boxq))
     pm_detect_0.start()
-    pm_detect_1 = Process(target=pintmain_detection, args=(input_frame_q, boxq))
-    pm_detect_1.start()
+    # pm_detect_1 = Process(target=pintmain_detection, args=(input_frame_q, boxq))
+    # pm_detect_1.start()
     pm = Process(target=pintmain, args=(input_frame_q, boxq, detstatisq))
     pm.start()
     # print('aaaaaaaaaaaaaaa')
@@ -881,6 +889,7 @@ if __name__ == "__main__":
     # print('cccccccccccc')
     statisprocess = Process(target=statis_to_ws, args=(detstatisq,))
     statisprocess.start()
+    # print('ddddddddddd')
     # fire.Fire(demo_classer)
     # gcf.join()
     # pm.join()
@@ -895,8 +904,8 @@ if __name__ == "__main__":
                 try:
                     # if i.shape[2] == 3:
                     input_frame_q.put(i)
-                    # print(i.shape) #(480, 640, 3)
-                    # print(input_frame_q.qsize())
+                    # print(i.shape, '---------', input_frame_q.qsize())  # (480, 640, 3)
+
                 except:
                     pass
         except:
