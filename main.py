@@ -1,20 +1,35 @@
+import cv2
+import glob
+from api.yolo_reid_pint_api import YoloReidPintAPIAlgorithm as pint_api
+import json
+from api.timer import Timer
 
-import sqlite3
 
-conn = sqlite3.connect('aquarium.sqlite')
-c = conn.cursor()
+class demo_classer(object):
+    def __init__(self):
+        with open("./config/yolo_reid_config.json", "r", encoding='utf-8') as f:
+            self.config = json.loads(f.read())
+        self.model = pint_api(self.config)
+        self.timer = Timer()
+        self.config['FIFO'] = '/dev/shm/img_q'
+        self.config['w'] = 640
+        self.config['h'] = 480
+        self.config['c'] = 3
+        self.config['RTMP_PATH'] = 'rtmp://192.168.8.121/live/bbb'
 
-# records or rows in a list
-records = [('1', 'Glen', '8', 'c'),
-           ('2', 'Elliot', '9', 'b'),
-           ('3', 'Bob', '7', 'a')]
+    def pint_main(self):
+        videos = glob.glob("./videos/*.avi")
+        for video in videos:
+            cap = cv2.VideoCapture(video)
+            cnt = 0
+            while cap.isOpened():
+                cnt += 1
+                if cnt > 100:
+                    break
+                f, img = cap.retrieve()
+                features, boxes, detect_result = self.model.run([img])
+                print(features[0])
 
-# insert multiple records in a single query
-c.executemany('INSERT INTO pedestrian(null,boxes, features,detect_result,timestamp) VALUES(?,?,?,?);', records);
 
-print('We have inserted', c.rowcount, 'records to the table.')
-
-# commit the changes to db
-conn.commit()
-# close the connection
-conn.close()
+xx = demo_classer()
+xx.pint_main()

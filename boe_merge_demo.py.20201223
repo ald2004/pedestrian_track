@@ -1,6 +1,5 @@
 import cv2
 import os
-
 import json
 import time
 import uuid
@@ -38,7 +37,6 @@ import ctypes
 from ctypes import *
 import threading
 import numpy as np
-
 import datetime
 import os
 import cv2
@@ -48,13 +46,10 @@ IMAGE_PIPE = '/dev/shm/img_q'
 RTMP_PIPE = '/dev/shm/rtmp_q'
 w = 640
 h = 480
-yoloW = 416,
 c = 3
-THRES = .5
+THRES = .15
 THRES_ALL = .7
 HOST = "0.0.0.0"
-# np.set_printoptions(threshold=9223372036854775807)
-
 connected = set()
 total_count = 0
 q0_count, q1_count, q2_count, q3_count, \
@@ -295,36 +290,24 @@ def p_getframe_python_to_queue(q: Queue):
 
 
 def put_bgr_encode_put_to_ffmpeg(frame, cur, inData):
-    # print('qqqqqqqqqqqqqqq')
-    # print(frame)
-    # print(frame.shape)
-    yuv = cv2.cvtColor(frame, cv2.COLOR_BGR2YUV_I420)
-    # print(yuv.shape)
-    # print('rrrrrrrrrrrrrrrr')
-    frame_for_encoder = copy.deepcopy(yuv)
-    # print(frame_for_encoder.shape)
-    # print(frame_for_encoder)
-    # print('wwwwwwwwwwwwww')
-    inData.buf = (ctypes.c_ubyte * 460800).from_buffer_copy(frame_for_encoder)
-    # print(inData.buf)
-    # print('eeeeeeeeeeeeeeeee')
-    cur.inputBgr(inData)
-    # print('etttttttttttttttttttttt')
-    img = cur.readH264()
-    # print(img.len)
-    # print('yyyyyyyyyyyyyyyy')
-    ffmpegprocess.stdin.write(bytes(img.buf1[:img.len]))
-    # print('zzzzzzzzzzzz')
-    # try:
-    #     ffmpegprocess.stdin.write(bytes(img.buf1[:img.len]))
-    # except:
-    #     pass
+    try:
+        yuv = cv2.cvtColor(frame, cv2.COLOR_BGR2YUV_I420)
+        frame_for_encoder = copy.deepcopy(yuv)
+        inData.buf = (ctypes.c_ubyte * 460800).from_buffer_copy(frame_for_encoder)
+        cur.inputBgr(inData)
+        imgh264 = cur.readH264()
+        ffmpegprocess.stdin.write(bytes(imgh264.buf1[:imgh264.len]))
+    except:
+        try:
+            ffmpegprocess.stdin.write(bytes(frame))
+        except:
+            pass
+
 
 
 def p_putframe_python_to_pipe(q: Queue, boxq: Queue):
     h264hearder = None
-    # with open('/opt/pedestrian_track/api/output_short_header_25fps.h264', 'rb') as fid:
-    with open('/opt/pedestrian_track/api/output_short_header_25fps_gop12.h264', 'rb') as fid:
+    with open('/opt/pedestrian_track/api/output_short_header_25fps.h264', 'rb') as fid:
         # h264hearder = fid.read(383)
         h264hearder = fid.read()
     ffmpegprocess.stdin.write(h264hearder)
@@ -466,11 +449,49 @@ async def server(websocket, path: str):
                   "ageCount": {"46-60": "10%", "61": "15%", "31-45": "5%", "21-30": "50%", "0-20": "20%"},
                   "genderCount": {"men": {"num": 2, "percent": "10%"}, "women": {"num": 4, "percent": "20%"}},
                   "totalCount": f"{total_count}", "faceCount": 0,
+                  # "personCount": {"60-120": "50", "0-15": "10", "30-45": "30", "15-30": "20", ">120": "60",
+                  #                 "45-60": "40"}},
                   "personCount": {"60-120": f"{q4_count}", "0-15": f"{q0_count}", "30-45": f"{q2_count}",
                                   "15-30": f"{q1_count}", ">120": f"{q5_count}",
                                   "45-60": f"{q3_count}"}}
             await websocket.send(json.dumps(xx))
         elif path.endswith('reportByHour'):
+            # print(path, '22222222222222')
+            # xx = {
+            #     "code": 200,
+            #     "data": {
+            #         "bankName": "ICBC",
+            #         "times": {
+            #             "0-15": 6626,
+            #             "15-30": 0,
+            #             "30-45": 0,
+            #             "45-60": 0,
+            #             "60-120": 0,
+            #             ">120": 0
+            #         },
+            #         "aresUser": {
+            #             "A": 15485,
+            #             "B": 22217,
+            #             "C": 31327,
+            #             "D": 13794
+            #         },
+            #         "hoursUser": {
+            #             "<8:00": 0,
+            #             "8:00-10:00": 968,
+            #             "10:00-12:00": 1894,
+            #             "12:00-14:00": 1900,
+            #             "14:00-16:00": 1893,
+            #             "16:00-18:00": 830,
+            #             ">18:00": 0
+            #         },
+            #         "totalUser": 7485,
+            #         "aveUser": 7485
+            #     },
+            #     "sucdess": True
+            # }
+            # xx = {"0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "5": 0, "6": 0, "7": 0, "8": 7, "9": 14, "10": 10,
+            #       "11": 11, "12": 12, "13": 13, "14": 14, "15": 15, "16": 16, "17": 17, "18": 18, "19": 19,
+            #       "20": 20, "21": 21, "22": 22}
             xx = {"0": h0, "1": h1, "2": h2, "3": h3, "4": h4, "5": h5, "6": h6, "7": h7, "8": h8, "9": h9, "10": h10,
                   "11": h11, "12": h12, "13": h13, "14": h14, "15": h15, "16": h16, "17": h17, "18": h18, "19": h19,
                   "20": h20, "21": h21, "22": h22, "23": h23}
@@ -480,20 +501,42 @@ async def server(websocket, path: str):
             xx = []
             # realHeat = distinctlist(realHeat)
             for box in realHeat:
-                # x1 = box[0] * w
-                # x2 = box[2] * w
-                # y1 = box[1] * h
-                # y2 = box[3] * h
-                x1 = box[0]
-                y1 = box[1]
-                bw = box[2]
-                bh = box[3]
-                xx.append({"x": int(x1 + bw / 2), "y": int(y1 + bh), "num": 1})
+                x1 = box[0] * w
+                x2 = box[2] * w
+                y1 = box[1] * h
+                y2 = box[3] * h
+                xx.append({"x": (x1 + x2) / 2, "y": (y1 + y2) / 2, "num": 1})
+
+            # xx = [{"x": 235, "y": 315, "num": 4}, {"x": 100, "y": 100, "num": 4},
+            #       {"x": 300, "y": 300, "num": 4}, {"x": 1000, "y": 1000, "num": 4}, ]
+            # print(json.dumps(xx))
             await websocket.send(json.dumps(xx))
 
         else:
             # path.endswith('realTrack'):
             tstamp = time.time()
+            # print(path, '4444444444')
+            xx = {
+                "code": 200,
+                "data": [
+                    {"id": "1", "x": 2750, "y": 9750, "time": 1541430823000},
+                    {"id": "2", "x": 1250, "y": 4750, "time": 1541430823000},
+                    {"id": "3", "x": 2750, "y": 6250, "time": 1541430823000},
+                    {"id": "4", "x": 3250, "y": 5250, "time": 1541430823000},
+                    {"id": "5", "x": 2250, "y": 10750, "time": 1541430823000},
+                    {"id": "5", "x": 2250, "y": 10750, "time": 1541430823002},
+                    {"id": "1", "x": 2750, "y": 10250, "time": 1541430823002},
+                    {"id": "2", "x": 1250, "y": 5250, "time": 1541430823002},
+                    {"id": "3", "x": 2750, "y": 6250, "time": 1541430823002},
+                    {"id": "4", "x": 3250, "y": 5750, "time": 1541430823002},
+                    {"id": "1", "x": 2750, "y": 9750, "time": 1541430823004},
+                    {"id": "2", "x": 1250, "y": 4750, "time": 1541430823004},
+                    {"id": "3", "x": 2750, "y": 6250, "time": 1541430823004}
+                ],
+                "sucdess": True
+            }
+            xx = [{"id": "1_136", "x": 235, "y": 315, "time": 1606874052384},
+                  {"id": "1_136", "x": 280, "y": 390, "time": 1606874052384}]
             while 1:
                 for conn in connected:
                     # y = 315
@@ -505,59 +548,37 @@ async def server(websocket, path: str):
                     # print('*' * 99)
                     # print(realTrack)
                     # print('*' * 99)
-                    '''
-                    {'id': ['38048a3f', '8bab0388', '7e25fb59', '7f7bf5df', '842f9cfe', '68dd1072', '684baeef', '96026056', '5a35b0d3', 'fcf7b420'], 
-                    'point': [[105.0, 278.0, 108.0, 197.0], [226.0, 209.0, 43.0, 237.0], [464.0, 213.0, 46.0, 70.0], [96.0, 186.0, 63.0, 137.0], [32.0, 186.0, 46.0, 84.0], 
-                    [266.0, 100.0, 19.0, 65.0], [1.0, 149.0, 38.0, 84.0], [144.0, 197.0, 24.0, 52.0], [251.0, 108.0, 19.0, 52.0], [403.0, 120.0, 16.0, 65.0]]}
-                    '''
-
                     jsondumpbatch = []
                     for i in range(len(realbox)):
                         bname = realname[i]
                         # bname = '1_136'
-                        bname = f"1_{realname[i][0:3]}"
+                        bname = f"1_{realname[i][0][:2]}"
                         # for b in realbox[i]:
                         b = realbox[i]
-                        # x1 = int(b[0] * yoloW)  # x
-                        # x2 = int(b[2] * yoloW)  # w
-                        # y1 = int(b[1] * yoloW)  # y
-                        # y2 = int(b[3] * yoloW)  # h
-                        x1, y1, bw, bh = b[0], b[1], b[2], b[3]
-                        # jsondump = [
-                        #     {"id": bname, "x": int((x1 + x2) / 2), "y": int((y1 + y2) / 2), "time": time.time()}]
+                        x1 = int(b[0] * w)
+                        x2 = int(b[2] * w)
+                        y1 = int(b[1] * h)
+                        y2 = int(b[3] * h)
                         jsondump = [
-                            # {"id": bname, "x": int((x1 + bw / 2)), "y": int((y1 + bh / 2)), "time": 1608802281.56608}
-                            {"id": bname, "x": int((x1 + bw / 2)), "y": int((y1 + bh / 2)), "time": time.time()}
-                        ]
-
+                            {"id": bname, "x": int((x1 + x2) / 2), "y": int((y1 + y2) / 2), "time": time.time()}]
                         # await conn.send(json.dumps(jsondump))
                         # await asyncio.sleep(.8)
                         jsondumpbatch.extend(jsondump)
 
-                    # enhance movment
-                    # jsondump_enhance=[]
-                    # for ppp_dict in jsondumpbatch:
-                    #     print(ppp_dict)
-                    #     xx1=ppp_dict['x']
-                    #     yy1=ppp_dict['y']
-                    #     nname=ppp_dict['id']
-                    #     for ii in range(int(xx1), int((xx1) + np.random.randint(20)), 5):
-                    #         jsondump_enhance.append({"id": nname, "x": int(ii + np.random.randint(-20, 20)),
-                    #                              "y": int(int(yy1) + np.random.randint(-20, 20)),
-                    #                              "time": time.time()})
-                    # jsondumpbatch.extend(jsondump_enhance)
-                    ##############
+                        # enhance movment
+                        # for i in range(int((x1 + x2) / 2), int((x1 + x2) / 2) + np.random.randint(20), 5):
+                        #     jsondump_enhance = [{"id": bname, "x": i, "y": int((y1 + y2) / 2 + np.random.randint(-10, 10)),
+                        #                          "time": time.time()}]
+                        # await conn.send(json.dumps())
+                        # await asyncio.sleep(.8)
+                        # y += 5
+                        # jsondumpbatch.extend(jsondump_enhance)
 
-                    # await conn.send(json.dumps())
-                    # await asyncio.sleep(.8)
-                    # y += 5
-                    # jsondumpbatch.extend(jsondump_enhance)
-
-                    # print('Set changed size during iteration')
-                    # await conn.recv()
-                    # connected.clear()
-                    # realTrack['point'].remove(realTrack['point'][i])
-                    # realTrack['id'].remove(realTrack['id'][i])
+                        # print('Set changed size during iteration')
+                        # await conn.recv()
+                        # connected.clear()
+                        # realTrack['point'].remove(realTrack['point'][i])
+                        # realTrack['id'].remove(realTrack['id'][i])
                     try:
                         await conn.send(json.dumps(jsondumpbatch))
                         # await asyncio.sleep(.6)
@@ -568,7 +589,6 @@ async def server(websocket, path: str):
                         # raise
                         pass
                 await asyncio.sleep(.6)
-
                 if not len(connected):
                     break
                 # await conn.recv()
@@ -591,7 +611,6 @@ async def server(websocket, path: str):
             # await asyncio.sleep(.1)
         # print(f"connections num :{len(connected)}")
     except:
-        # raise
         pass
     finally:
         # connected.clear()
@@ -609,25 +628,8 @@ def start_wsserver():
     asyncio.get_event_loop().run_forever()
 
 
-def get_found_gone(current_frame: np.ndarray, last_frame: np.ndarray, THRES=.7):
-    assert current_frame.ndim == 2 & last_frame.ndim == 2
-    current_frame, last_frame = current_frame.reshape(-1, 128), last_frame.reshape(-1, 128)
-    cdistance = cosine_similarity(current_frame, last_frame)
-    maxmat_0 = (np.max(cdistance, axis=0)[None, ...] == cdistance) & (cdistance > THRES)
-    maxmat_1 = (np.max(cdistance, axis=1)[..., None] == cdistance) & (cdistance > THRES)
-    indexes = np.where(maxmat_0 & maxmat_1)
-    # indexes = np.where(cdistance > THRES)
-    # found_current_index, found_last_index = np.unique(indexes[0]).reshape(-1), np.unique(indexes[1]).reshape(-1)
-    found_current_index, found_last_index = indexes[0].reshape(-1), indexes[1].reshape(-1)
-    assert found_current_index.size == found_last_index.size
-    # np.take(a,found_c_i) np.delete(a,found_c_id
-    # npfname=f'/dev/shm/{uuid.uuid4().hex}'
-    # np.save(npfname+'_c', current_frame)
-    # np.save(npfname+'_l',last_frame)
-    # np.save(npfname+'_d',cdistance)
-    # print(current_frame, '\n', last_frame, '\n', cdistance)
-    # return (np.sort(found_current_index), np.sort(found_last_index))
-    return (found_current_index, found_last_index)
+# def cosine_distance_fine(a, b):
+#     return a @ b.T
 
 
 def statis_to_ws(detsq: Queue):
@@ -638,88 +640,120 @@ def statis_to_ws(detsq: Queue):
         q4_count, q5_count, h0, h1, h2, h3, h4, h5, \
         h6, h7, h8, h9, h10, h11, h12, h13, h14, h15, \
         h16, h17, h18, h19, h20, h21, h22, h23, realTrack
-    f, b, _ = detsq.get()
-    # f, b, _ = f[0], b[0], d[0]
-    f, b = f[0], b[0]
+    f, b, d = detsq.get()
+    f, b, d = f[0], b[0], d[0]
+    # print(f, b, d)
+    # last_person_dict=dict(zip([str(uuid.uuid4())[0:8] for _ in range(len(f))], f))
     last_person_dict = {
-        'names': np.asarray([str(uuid.uuid4())[0:8] for _ in range(len(f))], dtype='<U8').reshape(1, -1),
+        'names': np.asarray([str(uuid.uuid4())[0:8] for _ in range(len(f))], dtype='<U8').reshape(-1, 1),
         'features': np.asarray(f, dtype=np.float32).reshape(-1, 128),
-        # 'boxes': np.asarray([x['box'] for x in b], dtype=np.float32).reshape(-1, 4),
-        'boxes': np.asarray(b, dtype=np.float32).reshape(-1, 4),
+        'boxes': np.asarray([x['box'] for x in d], dtype=np.float32).reshape(-1, 4),
         'timestamp': time.time()
     }
-    # TODO maintain a total person features list ...
     all_people_features = np.zeros((1, 128), dtype=np.float32)
     all_people_features = np.vstack((all_people_features, last_person_dict['features']))
     all_people_features = np.unique(all_people_features, axis=0)
-    # TODO END
-
     nowhour = datetime.datetime.now().hour
-    # if nowhour == 0:
-    #     h0, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, \
-    #     h13, h14, h15, h16, h17, h18, h19, h20, h21, h22, h23 = \
-    #         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    nowminites = datetime.datetime.now().minute
+    if nowhour == 0:
+        h0, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, \
+        h13, h14, h15, h16, h17, h18, h19, h20, h21, h22, h23 = \
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    if nowminites == 0:
+        realHeat.clear()
     while 1:
-        f, b, _ = detsq.get()
-        f, b = f[0], b[0]  # imgs 2 img
-        # print(f'f, b = f[0], b[0] {f}')
-        # print(f'f, b = f[0], b[0] {b}')
+        f, b, d = detsq.get()
+        # print('*' * 99)
+        # print(type(f), len(f))
+        # print(f, b, d)
+        # os._exit(0)
+        f, _, d = f[0], b[0], d[0]  # imgs 2 img
+
         # f = [ndarray(128,)] b= [[471, 330, 126, 296],] d= [{'box': array([0.36846708, 0.45896153, 0.46698031, 0.87079132]),
         # 'class_name': 'person', 'score': 0.99644506, 'class_id': 0},]
-        #######################################################################################################################
-        current_frame_features = np.asarray(f, dtype=np.float32).reshape(-1, 128)
-        # current_frame_boxes = np.asarray([x['box'] for x in b], dtype=np.float32).reshape(-1, 4)
-        current_frame_boxes = np.asarray(b, dtype=np.float32).reshape(-1, 4)
-        last_frame_features = last_person_dict['features']
-        curr_found_idx, last_found_idx = get_found_gone(current_frame_features, last_frame_features, THRES=THRES)
-        # print('*' * 88)
-        # print(current_frame_features.shape, last_frame_features.shape)  # (10, 128) (9, 128)
-        # print(curr_found_idx, last_found_idx)  # [0 1 2 3 4 5 6 7 8 9] [0 1 2 3 4 5 6 7 8]
-        # print(last_person_dict['names'],
-        #       last_found_idx)  # ['9c41ea8e' 'f5b56538' 'c08b1ca0' '923220ae' 'fbc33b7e' '9b020cd0' '168bfad2' 'abdaf773' '1aa0e116'] [0 1 2 3 4 5 6 7 8]
-        namefound = np.take(last_person_dict['names'], last_found_idx, axis=1)
+        found = []
+        newones = []
+        for i in range(len(f)):
+            # print('*'*99)
+            # print(type(f),len(f))
+            # print(last_person_dict)
+            # os._exit(0)
 
-        current_frame_boxes_found = np.take(current_frame_boxes, curr_found_idx, axis=0)
-        current_frame_boxes_new = np.delete(current_frame_boxes, curr_found_idx, axis=0)
-        featuresnew = np.delete(current_frame_features, curr_found_idx, axis=0)
-        namesnew = np.asarray([str(uuid.uuid4())[0:8] for _ in range(len(featuresnew))], dtype='<U8').reshape(1, -1)
-        # print(last_person_dict['names'], last_found_idx, namesnew)
-        # os._exit(0)
-        #######################################################################################################################
+            # if current people is found in history all features
+            # all peple found start
+            currentfeature = np.asarray(f[i], dtype=np.float32).reshape(-1, 128)
+            # distince_from_allpeople = cosine_distance(currentfeature, all_people_features).reshape(-1)
+            # argmax_all = np.argmax(distince_from_allpeople)
+            # # print('-' * 88)
+            # # print('people found from history all list....', all_people_features.shape, distince_from_allpeople)
+            # # print('-' * 88)
+            # if distince_from_allpeople[argmax_all] > THRES_ALL:
+            #     # print('+' * 88)
+            #     # print('people found from history all list....', all_people_features.shape, distince_from_allpeople)
+            #     # print('+' * 88)
+            #     continue
+            # all_people_features = np.vstack((all_people_features, currentfeature))
+            # all_people_features = np.unique(all_people_features, axis=0)
+            # all peple found end
+            ##################
 
-        realTrack['id'] = namefound.reshape(-1).tolist()
-        realTrack['id'].extend(namesnew.reshape(-1).tolist())
-        realTrack['point'] = current_frame_boxes_found.tolist()
-        realTrack['point'].extend(current_frame_boxes_new.tolist())
-        # print(realTrack)
-        # realTrack['point'] = boxesfound.tolist()
+            # cdistance = cosine_distance_fine(currentfeature,
+            #                                  last_person_dict['features']).reshape(-1)
+
+            cdistance = cosine_similarity(currentfeature, last_person_dict['features']).reshape(-1)
+            # cdistance (len(last_person_number),)
+            # argmin = np.argmin(np.abs(cdistance))
+            # argmin = np.argmin(cdistance)
+            argmax = np.argmax(cdistance)
+            # print('*' * 88)
+            # print(cdistance, argmax)
+            # print('*' * 88)
+            try:
+                if cdistance[argmax] > THRES:
+                    found.append(argmax)
+                    # print(found, newones)
+                    continue
+            except:
+                print('*' * 88)
+                print(cdistance, argmax, last_person_dict['features'], currentfeature)
+                print('*' * 88)
+                pass
+            newones.append(i)
+
+        maskfound = np.zeros(len(last_person_dict['features']), dtype=bool)
+        maskfound[found] = True
+        featuresfound = last_person_dict['features'][maskfound, ...]
+        boxesfound = last_person_dict['boxes'][maskfound, ...]
+        namefound = last_person_dict['names'][maskfound, ...]
+
+        masknew = np.zeros(len(f), dtype=bool)
+        masknew[newones] = True
+        featuresnew = np.asarray(f, dtype=np.float32).reshape(-1, 128)[masknew, ...]
+        namesnew = np.asarray([str(uuid.uuid4())[0:8] for _ in range(len(featuresnew))], dtype='<U8').reshape(-1, 1)
+        boxesnew = np.asarray([x['box'] for x in d], dtype=np.float32).reshape(-1, 4)[masknew, ...]
+
+        # realTrack['id'].extend(namefound.tolist())
+        # realTrack['id'].extend(namesnew.tolist())
+        # realTrack['point'].extend(boxesfound.tolist())
         # realTrack['point'].extend(boxesnew.tolist())
+
+        realTrack['id'] = namefound.tolist()
+        realTrack['id'].extend(namesnew.tolist())
+        realTrack['point'] = boxesfound.tolist()
+        realTrack['point'].extend(boxesnew.tolist())
         # print(realTrack)
-        # maskgone = np.ones(len(last_person_dict['features']), dtype=bool)
-        # maskgone[found] = False
-        # resultgone = last_person_dict['features'][maskgone, ...]
+        maskgone = np.ones(len(last_person_dict['features']), dtype=bool)
+        maskgone[found] = False
+        resultgone = last_person_dict['features'][maskgone, ...]
+        # namegone = last_person_dict['names'][maskgone, ...]
 
-        #########################################################
-        resultgone = np.delete(last_frame_features, last_found_idx, axis=0)
-        # print('-' * 99)
-        # print(f'curr fea length is {len(current_frame_features)}, last fea length is {len(last_frame_features)}')
-        # print(f'curr_found_idx is {curr_found_idx}, last_found_idx is {last_found_idx}')
-        # print(f'namefound is {namefound}, realTrack point is {current_frame_boxes}')
-        # print(f'resultgone shape is {resultgone.shape}, len is {len(resultgone)}')
-        # if len(resultgone) > 2:
-        #     npfname=f'/dev/shm/{uuid.uuid4().hex}'
-        #     np.save(npfname+'_c', current_frame_features)
-        #     np.save(npfname+'_l',last_frame_features)
-        #     os._exit(0)
-        #########################################################
+        total_count += len(resultgone)
 
-        total_count += min(1, len(resultgone))
+        name = str(uuid.uuid4())[0:8]
         last_person_dict = {
-            'names': np.hstack((namefound, namesnew)).reshape(1, -1),
-            # 'features': np.vstack((featuresfound, featuresnew)).reshape(-1, 128),
-            'features': current_frame_features,
-            # 'boxes': np.vstack((boxesfound, boxesnew)).reshape(-1, 4),
-            'boxes': current_frame_boxes,
+            'names': np.vstack((namefound, namesnew)).reshape(-1, 1),
+            'features': np.vstack((featuresfound, featuresnew)).reshape(-1, 128),
+            'boxes': np.vstack((boxesfound, boxesnew)).reshape(-1, 4),
             'timestamp': time.time()
         }
         # print('*' * 88)
@@ -734,9 +768,7 @@ def statis_to_ws(detsq: Queue):
         # # realHeat.clear()
         # for box in np.unique(realheattmp, axis=0):
         #     realHeat.append(box)
-        # for box in last_person_dict['boxes']:
-        realHeat.clear()
-        for box in current_frame_boxes:
+        for box in last_person_dict['boxes']:
             realHeat.append(box)
         if nowhour == 0:
             h0 += len(resultgone)
@@ -792,7 +824,7 @@ def statis_to_ws(detsq: Queue):
         #         detsq.get_nowait()
         # except:
         #     pass
-        # time.sleep(.3)
+        # time.sleep(1)
 
 
 if __name__ == "__main__":
@@ -808,9 +840,9 @@ if __name__ == "__main__":
 
     ffmpegprocess = (
         ffmpeg
-            .input('pipe:', re=None, r=20)
+            .input('pipe:',re=None)
             # .filter('scale', width='570', height='320')
-            .output('rtmp://192.168.8.121/live/bbb', vcodec='copy', format='flv', r=25
+            .output('rtmp://192.168.8.121/live/bbb', vcodec='copy', format='flv', r='25'
                     # ,s='570x320'
                     )
             .run_async(pipe_stdin=True))
@@ -853,22 +885,18 @@ if __name__ == "__main__":
     # for read video from local ./videos/*.avi
     for video in cycle(glob.glob("./videos/*.avi")):
         cap = cv2.VideoCapture(video)
-        while cap.isOpened():
+        while cap.isOpened() :
             if cap.grab():
-                flag, frame = cap.retrieve()
+                flag,frame=cap.retrieve()
                 if not flag:
                     continue
                 else:
                     input_frame_q.put(frame)
             else:
-                print('grab error ......')
+                print('grab error...')
                 break
         cap.release()
 '''
  ffmpeg -hwaccel_device /dev/dri/card0 -r 9 -i /dev/shm/rtmp_q -an -s 320*240  -f flv -r 9 rtmp://192.168.8.121/live/bbb -c:v h264_vaapi
   ffmpeg -hwaccel_device /dev/dri/card0 -r 9 -i /dev/shm/rtmp_q -an -s 320*240  -f flv -r 9 rtmp://192.168.8.121/live/bbb -c:v hevc_vaapi
-  -use_wallclock_as_timestamps 1
-  -re
-  
-  ffmpeg -re -i video_001_resized_q1_rewrited.avi -an -s 320*240  -f flv -r 9 rtmp://192.168.8.121/live/bbb
 '''
